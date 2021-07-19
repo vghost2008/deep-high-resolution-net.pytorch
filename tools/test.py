@@ -69,6 +69,9 @@ def parse_args():
 def main():
     args = parse_args()
     update_config(cfg, args)
+    cfg.defrost()
+    cfg.GPUS = (0,)
+    cfg.freeze()
 
     logger, final_output_dir, tb_log_dir = create_logger(
         cfg, args.cfg, 'valid')
