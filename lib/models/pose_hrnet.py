@@ -13,6 +13,7 @@ import logging
 
 import torch
 import torch.nn as nn
+from wtorch.utils import *
 
 
 BN_MOMENTUM = 0.1
@@ -329,6 +330,7 @@ class PoseHighResolutionNet(nn.Module):
         )
 
         self.pretrained_layers = extra['PRETRAINED_LAYERS']
+        self.add_preprocess = False
 
     def _make_transition_layer(
             self, num_channels_pre_layer, num_channels_cur_layer):
@@ -423,6 +425,15 @@ class PoseHighResolutionNet(nn.Module):
         return nn.Sequential(*modules), num_inchannels
 
     def forward(self, x):
+        if self.add_preprocess:
+            #input [B,H,W,3]
+            print(f"---------------------------------------------------------------")
+            print(f"Add preprocess.")
+            print(f"---------------------------------------------------------------")
+            x = x/255.0
+            mean=[0.485, 0.456, 0.406]
+            std=[0.229, 0.224, 0.225]
+            x = normalize(x,mean,std)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)

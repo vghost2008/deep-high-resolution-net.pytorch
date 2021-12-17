@@ -248,7 +248,7 @@ class JointsDataset(Dataset):
                                self.heatmap_size[0]),
                               dtype=np.float32)
 
-            tmp_size = self.sigma * 3
+            tmp_size = self.sigma * 3 #sigma=3
 
             for joint_id in range(self.num_joints):
                 feat_stride = self.image_size / self.heatmap_size
