@@ -7,6 +7,8 @@ import os
 import pprint
 import shutil
 
+os.environ['CUDA_VISIBLE_DEVICES'] = "2"
+
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -79,6 +81,9 @@ def main():
 
     logger.info(pprint.pformat(args))
     logger.info(cfg)
+    cfg.defrost()
+    cfg.GPUS = 0,
+    cfg.freeze()
 
     # cudnn related setting
     cudnn.benchmark = cfg.CUDNN.BENCHMARK

@@ -92,4 +92,8 @@ external/
 
 draws/
 plot/
-
+*.mp4
+*.torch
+*.onnx
+*.zip
+*.pth

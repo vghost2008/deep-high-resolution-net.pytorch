@@ -12,6 +12,7 @@ from __future__ import print_function
 import argparse
 import os
 import pprint
+os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 
 import torch
 import torch.nn.parallel

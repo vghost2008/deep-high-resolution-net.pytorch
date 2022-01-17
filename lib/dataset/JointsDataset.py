@@ -63,6 +63,9 @@ class JointsDataset(Dataset):
         raise NotImplementedError
 
     def half_body_transform(self, joints, joints_vis):
+        '''
+        get half body bbox
+        '''
         upper_joints = []
         lower_joints = []
         for joint_id in range(self.num_joints):
