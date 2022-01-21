@@ -97,3 +97,4 @@ plot/
 *.onnx
 *.zip
 *.pth
+*.jpg

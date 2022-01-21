@@ -17,10 +17,11 @@ from pathlib import Path
 import torch
 import torch.optim as optim
 import torch.nn as nn
+from datadef import *
 
 
 def create_logger(cfg, cfg_name, phase='train'):
-    root_output_dir = Path(cfg.OUTPUT_DIR)
+    root_output_dir = Path(get_ckpt_dir())
     # set up logger
     if not root_output_dir.exists():
         print('=> creating {}'.format(root_output_dir))
@@ -48,8 +49,10 @@ def create_logger(cfg, cfg_name, phase='train'):
     console = logging.StreamHandler()
     logging.getLogger('').addHandler(console)
 
-    tensorboard_log_dir = Path(cfg.LOG_DIR) / dataset / model / \
-        (cfg_name + '_' + time_str)
+    #tensorboard_log_dir = Path(get_log_dir()) / dataset / model / \
+    #    (cfg_name + '_' + time_str)
+    tensorboard_log_dir = Path(get_log_dir()) / dataset / model / \
+        (cfg_name)
 
     print('=> creating {}'.format(tensorboard_log_dir))
     tensorboard_log_dir.mkdir(parents=True, exist_ok=True)

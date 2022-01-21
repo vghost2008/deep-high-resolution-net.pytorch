@@ -10,3 +10,4 @@ from __future__ import print_function
 
 from .mpii import MPIIDataset as mpii
 from .coco import COCODataset as coco
+from .coco_mpii import COCOMPIIDataset as coco_mpii

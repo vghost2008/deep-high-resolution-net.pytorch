@@ -7,22 +7,40 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
- 
+import torch.nn as nn 
 import time
 import logging
 import os
 
 import numpy as np
 import torch
-
+import wtorch.utils as wtu
 from core.evaluate import accuracy
 from core.inference import get_final_preds
 from utils.transforms import flip_back
 from utils.vis import save_debug_images
+from wtorch.summary import *
 
 
 logger = logging.getLogger(__name__)
 
+def make_heat_map_img(heat_map):
+    '''
+    heat_map:[B,17,H,W]
+    '''
+    hmr = torch.sum(heat_map[:,:5],axis=1,keepdim=True)
+    g_idxs = list(range(5,17,2))
+    b_idxs = list(range(6,17,2))
+    hmg = torch.sum(heat_map[:,g_idxs],axis=1,keepdim=True)
+    hmb = torch.sum(heat_map[:,b_idxs],axis=1,keepdim=True)
+    return torch.cat([hmr,hmg,hmb],axis=1)
+
+def make_weight_img(data):
+    data = data.detach().cpu()
+    data = torch.unsqueeze(data,axis=1)
+    data = torch.tile(data,[1,3,1,10])
+    data = nn.functional.interpolate(data,scale_factor=10)
+    return data
 
 def train(config, train_loader, model, criterion, optimizer, epoch,
           output_dir, tb_log_dir, writer_dict):
@@ -38,6 +56,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
     for i, (input, target, target_weight, meta) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
+
 
         # compute output
         outputs = model(input)
@@ -72,6 +91,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
         end = time.time()
 
         if i % config.PRINT_FREQ == 0:
+        #if i % 2 == 0:
             msg = 'Epoch: [{0}][{1}/{2}]\t' \
                   'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                   'Speed {speed:.1f} samples/s\t' \
@@ -92,7 +112,21 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
             prefix = '{}_{}'.format(os.path.join(output_dir, 'train'), i)
             save_debug_images(config, input, meta, target, pred*4, output,
                               prefix)
-
+            log_img = wtu.unnormalize(input[:4],mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            writer.add_images("input/images",log_img,global_steps)
+            log_basic_info(writer,"input/images",input,global_steps)
+            log_target = make_heat_map_img(target.cpu()[:4])
+            writer.add_images("target_heat_map",log_target,global_steps)
+            log_target =  nn.functional.interpolate(log_target,scale_factor=4)
+            log_img2 = wtu.merge_imgs_heatmap(log_img,log_target,channel=1,min=0.0,max=1.0)
+            writer.add_images("input/merged",log_img2,global_steps)
+            log_output =  nn.functional.interpolate(output[:4].detach().cpu(),scale_factor=4)
+            log_output = make_heat_map_img(log_output)
+            log_img3 = wtu.merge_imgs_heatmap(log_img,log_output,channel=1,min=0.0,max=1.0)
+            writer.add_images("input/merged_output",log_img3,global_steps)
+            log_weight = make_weight_img(target_weight[:4])
+            writer.add_images("input/weight",log_weight,global_steps)
+            log_all_variable(writer,model,global_steps)
 
 def validate(config, val_loader, val_dataset, model, criterion, output_dir,
              tb_log_dir, writer_dict=None):

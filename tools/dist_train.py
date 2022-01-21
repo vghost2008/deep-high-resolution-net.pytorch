@@ -86,9 +86,9 @@ def main():
 
     logger.info(pprint.pformat(args))
     logger.info(cfg)
-    cfg.defrost()
+    '''cfg.defrost()
     cfg.GPUS = 0,
-    cfg.freeze()
+    cfg.freeze()'''
 
     # cudnn related setting
     cudnn.benchmark = cfg.CUDNN.BENCHMARK
@@ -206,7 +206,6 @@ def main():
         # train for one epoch
         train(cfg, train_loader, model, criterion, optimizer, epoch,
               final_output_dir, tb_log_dir, writer_dict)
-        continue
 
 
         # evaluate on validation set

@@ -186,10 +186,10 @@ class COCODataset(JointsDataset):
             for ipt in range(self.num_joints):
                 joints_3d[ipt, 0] = obj['keypoints'][ipt * 3 + 0]
                 joints_3d[ipt, 1] = obj['keypoints'][ipt * 3 + 1]
-                joints_3d[ipt, 2] = 0
                 t_vis = obj['keypoints'][ipt * 3 + 2]
                 if t_vis > 1:
                     t_vis = 1
+                joints_3d[ipt, 2] = t_vis
                 joints_3d_vis[ipt, 0] = t_vis
                 joints_3d_vis[ipt, 1] = t_vis
                 joints_3d_vis[ipt, 2] = 0

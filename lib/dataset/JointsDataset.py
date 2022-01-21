@@ -7,19 +7,21 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
+import object_detection2.keypoints as odk
 import copy
 import logging
 import random
-
+import object_detection2.bboxes as odb
 import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
+import object_detection2.visualization as odv
+from iotoolkit.coco_toolkit import JOINTS_PAIR as COCO_JOINTS_PAIR
 from utils.transforms import get_affine_transform
 from utils.transforms import affine_transform
 from utils.transforms import fliplr_joints
+import img_utils as wmli
 
 
 logger = logging.getLogger(__name__)
@@ -146,6 +148,11 @@ class JointsDataset(Dataset):
         r = 0
 
         if self.is_train:
+            try:
+                if np.random.rand()<0.4:
+                    return self.trans_data_type0(data_numpy,db_rec)
+            except Exception as e:
+                print(f"Trans data error {e}")
             if (np.sum(joints_vis[:, 0]) > self.num_joints_half_body
                 and np.random.rand() < self.prob_half_body):
                 c_half_body, s_half_body = self.half_body_transform(
@@ -199,6 +206,114 @@ class JointsDataset(Dataset):
         }
 
         return input, target, target_weight, meta
+    
+    @staticmethod
+    def save_vis_kps(img,kps,path,bbox=None):
+        img = odv.draw_keypoints(img,kps[...,:3],joints_pair=COCO_JOINTS_PAIR)
+        if bbox is not None:
+            img = odv.draw_bbox(img,bbox,xy_order=True)
+        wmli.imwrite(path,img)
+
+    def trans_data_type0(self,data_numpy,db_rec):
+        image_file = db_rec['image']
+        filename = db_rec['filename'] if 'filename' in db_rec else ''
+        imgnum = db_rec['imgnum'] if 'imgnum' in db_rec else ''
+        joints = db_rec['joints_3d']
+        joints_vis = db_rec['joints_3d_vis']
+        bbox = db_rec.get('clean_bbox',None)
+        if bbox is None:
+            bbox = odk.npget_bbox(joints)
+        bbox = odb.npscale_bboxes(bbox,1.25)
+        score = db_rec['score'] if 'score' in db_rec else 1
+        c = db_rec['center']
+        sf = self.scale_factor
+        rf = self.rotation_factor
+        s =  np.clip(np.random.randn()*sf + 1, 1 - sf, 1 + sf)
+        r = np.clip(np.random.randn()*rf, -rf*2, rf*2) \
+                if random.random() <= 0.6 else 0
+        
+        #s = 1.4
+        #r = 45
+        #self.save_vis_kps(data_numpy,joints,"a.jpg",bbox)
+        data_numpy,joints,bbox = odk.rotate(r,data_numpy,joints,bbox,s)
+        joints_vis[:,0] = joints[:,2] 
+        joints_vis[:,1] = joints[:,2] 
+        #self.save_vis_kps(data_numpy,joints,"b.jpg",bbox)
+        if self.flip and random.random() <= 0.5:
+            data_numpy,joints,joints_vis,bbox = odk.flip(data_numpy,joints,joints_vis,self.flip_pairs,
+                                                        bbox=bbox)
+        #self.save_vis_kps(data_numpy,joints,"b1.jpg",bbox)
+        #bbox = odk.npget_bbox(joints)
+        #bbox = odb.npscale_bboxes(bbox,1.4)
+        data_numpy,bbox = self.cut_and_resize(data_numpy,[bbox],size=self.image_size)
+        data_numpy = data_numpy[0]
+        bbox = bbox[0]
+        joints = odk.cut2size(joints,bbox,self.image_size)
+        #self.save_vis_kps(data_numpy,joints,"c.jpg",bbox)
+
+        target, target_weight = self.generate_target(joints, joints_vis)
+        if np.max(target_weight)<0.1:
+            #print(f"ERROR")
+            pass
+        target = torch.from_numpy(target)
+        target_weight = torch.from_numpy(target_weight)
+        if self.transform:
+            data_numpy = self.transform(data_numpy)
+
+        meta = {
+            'image': image_file,
+            'filename': filename,
+            'imgnum': imgnum,
+            'joints': joints,
+            'joints_vis': joints_vis,
+            'center': c,
+            'scale': db_rec['scale'],
+            'rotation': r,
+            'score': score
+        }
+
+        return data_numpy, target, target_weight, meta
+
+    @staticmethod
+    def cut_and_resize(img,bboxes,size=(288,384)):
+        res = []
+        res_bboxes = []
+        bboxes = np.array(bboxes).astype(np.int32)
+        for i,bbox in enumerate(bboxes):
+            cur_img = img[bbox[1]:bbox[3],bbox[0]:bbox[2],:]
+            if cur_img.shape[0]>1 and cur_img.shape[1]>1:
+                #cur_img = cv2.resize(cur_img,size,interpolation=cv2.INTER_LINEAR)
+                cur_img,bbox = JointsDataset.resize_img(cur_img,bbox,size)
+            else:
+                cur_img = np.zeros([size[1],size[0],3],dtype=np.float32)
+            res.append(cur_img)
+            res_bboxes.append(bbox)
+        return res,np.array(res_bboxes,dtype=np.float32)
+    
+    @staticmethod
+    def resize_img(img,bbox,target_size,pad_color=(127,127,127)):
+        res = np.ndarray([target_size[1],target_size[0],3],dtype=np.uint8)
+        res[:,:] = np.array(pad_color,dtype=np.uint8)
+        ratio = target_size[0]/target_size[1]
+        bbox_cx = (bbox[2]+bbox[0])/2
+        bbox_cy = (bbox[3]+bbox[1])/2
+        bbox_w = (bbox[2]-bbox[0])
+        bbox_h = (bbox[3]-bbox[1])
+        if img.shape[1]>ratio*img.shape[0]:
+            nw = target_size[0]
+            nh = int(target_size[0]*img.shape[0]/img.shape[1])
+            bbox_h = bbox_w/ratio
+        else:
+            nh = target_size[1]
+            nw = int(target_size[1]*img.shape[1]/img.shape[0])
+            bbox_w = bbox_h*ratio
+    
+        img = cv2.resize(img,(nw,nh),interpolation=cv2.INTER_LINEAR)
+        xoffset = (target_size[0]-nw)//2
+        yoffset = (target_size[1]-nh)//2
+        res[yoffset:yoffset+nh,xoffset:xoffset+nw] = img
+        bbox = np.array([bbox_cx-bbox_w/2,bbox_cy-bbox_h/2,bbox_cx+bbox_w/2,bbox_cy+bbox_h/2],dtype=np.float32)
+        return res,bbox
 
     def select_data(self, db):
         db_selected = []
@@ -239,6 +354,7 @@ class JointsDataset(Dataset):
         :param joints_vis: [num_joints, 3]
         :return: target, target_weight(1: visible, 0: invisible)
         '''
+        joints_vis = np.minimum(joints_vis,1)
         target_weight = np.ones((self.num_joints, 1), dtype=np.float32)
         target_weight[:, 0] = joints_vis[:, 0]
 
@@ -254,6 +370,8 @@ class JointsDataset(Dataset):
             tmp_size = self.sigma * 3 #sigma=3
 
             for joint_id in range(self.num_joints):
+                if target_weight[joint_id,0]<0.1:
+                    continue
                 feat_stride = self.image_size / self.heatmap_size
                 mu_x = int(joints[joint_id][0] / feat_stride[0] + 0.5)
                 mu_y = int(joints[joint_id][1] / feat_stride[1] + 0.5)

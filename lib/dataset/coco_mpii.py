@@ -14,7 +14,8 @@ import logging
 import os
 import os.path as osp
 import pickle
-
+import object_detection2.keypoints as odk
+import object_detection2.bboxes as odb
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import json_tricks as json
@@ -28,7 +29,7 @@ from nms.nms import soft_oks_nms
 logger = logging.getLogger(__name__)
 
 
-class COCODataset(JointsDataset):
+class COCOMPIIDataset(JointsDataset):
     '''
     "keypoints": {
         0: "nose",
@@ -129,14 +130,23 @@ class COCODataset(JointsDataset):
         return image_ids
 
     def _get_db(self):
-        if self.is_train or self.use_gt_bbox:
-            # use ground truth bbox
-            gt_db = self._load_coco_keypoint_annotations()
+        gt_db = []
+        if self.is_train:
+            if self.is_train or self.use_gt_bbox:
+                # use ground truth bbox
+                gt_db = self._load_coco_keypoint_annotations()
+            else:
+                # use bbox from detection
+                gt_db = self._load_coco_person_detection_results()
+            
+            gt_db.extend(self._load_mpii_keypoint_annotations())
         else:
-            # use bbox from detection
-            gt_db = self._load_coco_person_detection_results()
-        
-        gt_db.extend(self._load_mpii_keypoint_annotation_kernal())
+            if self.is_train or self.use_gt_bbox:
+                # use ground truth bbox
+                gt_db = self._load_coco_keypoint_annotations()
+            else:
+                # use bbox from detection
+                gt_db = self._load_coco_person_detection_results()
 
         print(f"Total load {len(gt_db)} data.")
 
@@ -189,6 +199,7 @@ class COCODataset(JointsDataset):
             y2 = np.min((height - 1, y1 + np.max((0, h - 1))))
             if obj['area'] > 0 and x2 >= x1 and y2 >= y1:
                 obj['clean_bbox'] = [x1, y1, x2-x1, y2-y1]
+                obj['bbox'] = [x1, y1, x2, y2]
                 valid_objs.append(obj)
         objs = valid_objs
 
@@ -207,15 +218,19 @@ class COCODataset(JointsDataset):
             for ipt in range(self.num_joints):
                 joints_3d[ipt, 0] = obj['keypoints'][ipt * 3 + 0]
                 joints_3d[ipt, 1] = obj['keypoints'][ipt * 3 + 1]
-                joints_3d[ipt, 2] = 0
                 t_vis = obj['keypoints'][ipt * 3 + 2]
+                joints_3d[ipt, 2] = t_vis
                 if t_vis > 1:
                     t_vis = 1
                 joints_3d_vis[ipt, 0] = t_vis
                 joints_3d_vis[ipt, 1] = t_vis
                 joints_3d_vis[ipt, 2] = 0
+            
+            bbox = obj['bbox']
+            kp_bbox = odk.npget_bbox(joints_3d)
+            if kp_bbox is not None:
+                bbox = odb.bbox_of_boxes([bbox,kp_bbox])
 
-            clean_bbox = obj['clean_bbox'][:4]
             center, scale = self._box2cs(obj['clean_bbox'][:4])
             rec.append({
                 'image': self.image_path_from_index(index),
@@ -223,7 +238,7 @@ class COCODataset(JointsDataset):
                 'scale': scale,
                 'joints_3d': joints_3d,
                 'joints_3d_vis': joints_3d_vis,
-                'clean_bbox':clean_bbox,
+                'clean_bbox':bbox,
                 'filename': '',
                 'imgnum': 0,
             })
@@ -248,15 +263,12 @@ class COCODataset(JointsDataset):
         rec = []
         for bbox,kps in zip(bboxes,all_kps):
             # ignore objs without keypoints annotation
-            if max(kps) == 0:
+            if np.max(kps[:,:2]) == 0:
                 continue
 
-            joints_3d = np.zeros((self.num_joints, 3), dtype=np.float)
+            joints_3d = kps
             joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
             for ipt in range(self.num_joints):
-                joints_3d[ipt, 0] = kps[ipt,0]
-                joints_3d[ipt, 1] = kps[ipt,1]
-                joints_3d[ipt, 2] = 0
                 t_vis = kps[ipt,2]
                 if t_vis > 1:
                     t_vis = 1
@@ -264,7 +276,10 @@ class COCODataset(JointsDataset):
                 joints_3d_vis[ipt, 1] = t_vis
                 joints_3d_vis[ipt, 2] = 0
 
-            clean_bbox = bbox
+            clean_bbox = [bbox[0],bbox[1],bbox[2]-bbox[0],bbox[3]-bbox[1]]
+            kp_bbox = odk.npget_bbox(joints_3d)
+            if kp_bbox is not None:
+                bbox = odb.bbox_of_boxes([bbox,kp_bbox])
             center, scale = self._box2cs(clean_bbox)
             rec.append({
                 'image': osp.join(self.mpii_img_dir,img_name),
@@ -272,7 +287,7 @@ class COCODataset(JointsDataset):
                 'scale': scale,
                 'joints_3d': joints_3d,
                 'joints_3d_vis': joints_3d_vis,
-                'clean_bbox':clean_bbox,
+                'clean_bbox':bbox,
                 'filename': '',
                 'imgnum': 0,
             })
