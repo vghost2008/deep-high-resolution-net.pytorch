@@ -20,10 +20,11 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import json_tricks as json
 import numpy as np
-
+import wtorch.dataset_toolkit as tdt
 from dataset.JointsDataset import JointsDataset
 from nms.nms import oks_nms
 from nms.nms import soft_oks_nms
+import glob
 
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,13 @@ class COCOMPIIDataset(JointsDataset):
         super().__init__(cfg, root, image_set, is_train, transform)
         self.mpii_anno_path = "/home/wj/ai/mldata1/MPII/MPII/mpii_human_pose_v1_u12_2/mpii_coco.pt"
         self.mpii_img_dir = "/home/wj/ai/mldata1/MPII/MPII/images"
+        self.lpset_anno_path = "/home/wj/ai/mldata1/lspet/lspet/lspet_coco.pt"
+        self.lpset_img_dir = "/home/wj/ai/mldata1/lspet/lspet/images"
+        self.penn_anno_path = "/home/wj/ai/mldata1/penn_action/Penn_Action/coco_labels"
+        self.penn_img_dir = "/home/wj/ai/mldata1/penn_action/Penn_Action/frames"
+        self.crowd_pose_anno_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt',
+        self.crowd_pose_img_dir =   '/home/wj/ai/mldata1/crowd_pose/images'
+
         self.nms_thre = cfg.TEST.NMS_THRE
         self.image_thre = cfg.TEST.IMAGE_THRE
         self.soft_nms = cfg.TEST.SOFT_NMS
@@ -132,7 +140,7 @@ class COCOMPIIDataset(JointsDataset):
     def _get_db(self):
         gt_db = []
         if self.is_train:
-            if self.is_train or self.use_gt_bbox:
+            '''if self.is_train or self.use_gt_bbox:
                 # use ground truth bbox
                 gt_db = self._load_coco_keypoint_annotations()
             else:
@@ -140,6 +148,9 @@ class COCOMPIIDataset(JointsDataset):
                 gt_db = self._load_coco_person_detection_results()
             
             gt_db.extend(self._load_mpii_keypoint_annotations())
+            gt_db.extend(self._load_lpset_keypoint_annotations())
+            gt_db.extend(self._load_penn_action_keypoint_annotations())'''
+            gt_db.extend(self._load_crowd_pose_keypoint_annotations())
         else:
             if self.is_train or self.use_gt_bbox:
                 # use ground truth bbox
@@ -165,10 +176,48 @@ class COCOMPIIDataset(JointsDataset):
         with open(self.mpii_anno_path,"rb") as f:
             datas = pickle.load(f)
             for data in datas:
-                tmp_db = self._load_mpii_keypoint_annotation_kernal(data)
+                tmp_db = self._load_mpii_keypoint_annotation_kernal(data,img_dir=self.mpii_img_dir)
                 gt_db.extend(tmp_db)
         
         print(f"Total load {len(gt_db)} mpii data.")
+        return gt_db
+
+    def _load_crowd_pose_keypoint_annotations(self):
+        gt_db = []
+        with open(self.crowd_pose_anno_path,"rb") as f:
+            datas = pickle.load(f)
+            for data in datas:
+                tmp_db = self._load_mpii_keypoint_annotation_kernal(data,
+                    img_dir=self.crowd_pose_img_dir)
+                gt_db.extend(tmp_db)
+        
+        print(f"Total load {len(gt_db)} crowd pose data.")
+        return gt_db
+    def _load_lpset_keypoint_annotations(self):
+        gt_db = []
+        with open(self.lpset_anno_path,"rb") as f:
+            datas = pickle.load(f)
+            for data in datas:
+                tmp_db = self._load_mpii_keypoint_annotation_kernal(data,img_dir=self.lpset_img_dir)
+                gt_db.extend(tmp_db)
+        
+        print(f"Total load {len(gt_db)} lpset data.")
+        return gt_db
+
+    def _load_penn_action_keypoint_annotations(self):
+        gt_db = []
+        all_files = glob.glob(osp.join(self.penn_anno_path,"*.pt"))
+        print(f"Total find {len(all_files)} penn anno files.")
+        for file in all_files:
+            with open(file,"rb") as f:
+                datas = pickle.load(f)
+                for data in datas:
+                    tmp_db = self._load_mpii_keypoint_annotation_kernal(data,img_dir=self.penn_img_dir)
+                    gt_db.extend(tmp_db)
+        
+        print(f"Total load {len(gt_db)} penn action data.")
+        gt_db = tdt.make_data_unit(gt_db,total_nr=20000)
+        print(f"Total make {len(gt_db)} penn action data unit.")
         return gt_db
 
     def _load_coco_keypoint_annotation_kernal(self, index):
@@ -245,7 +294,7 @@ class COCOMPIIDataset(JointsDataset):
 
         return rec
 
-    def _load_mpii_keypoint_annotation_kernal(self, data):
+    def _load_mpii_keypoint_annotation_kernal(self, data,img_dir):
         """
         coco ann: [u'segmentation', u'area', u'iscrowd', u'image_id', u'bbox', u'category_id', u'id']
         iscrowd:
@@ -277,18 +326,25 @@ class COCOMPIIDataset(JointsDataset):
                 joints_3d_vis[ipt, 2] = 0
 
             clean_bbox = [bbox[0],bbox[1],bbox[2]-bbox[0],bbox[3]-bbox[1]]
+            if clean_bbox[2]<2 or clean_bbox[3]<2:
+                print(f"Skip {img_dir}/{img_name} {bbox}")
+                continue
+            total_kps_nr = np.sum((kps[...,2]>0.1).astype(np.int32))
+            if total_kps_nr<3:
+                print(f"Skip {img_dir}/{img_name} {total_kps_nr} {kps} {bbox}")
+                continue
             kp_bbox = odk.npget_bbox(joints_3d)
             if kp_bbox is not None:
                 bbox = odb.bbox_of_boxes([bbox,kp_bbox])
             center, scale = self._box2cs(clean_bbox)
             rec.append({
-                'image': osp.join(self.mpii_img_dir,img_name),
+                'image': osp.join(img_dir,img_name),
                 'center': center,
                 'scale': scale,
                 'joints_3d': joints_3d,
                 'joints_3d_vis': joints_3d_vis,
                 'clean_bbox':bbox,
-                'filename': '',
+                'filename': img_name,
                 'imgnum': 0,
             })
 

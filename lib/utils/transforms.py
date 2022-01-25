@@ -42,8 +42,8 @@ def fliplr_joints(joints, joints_vis, width, matched_parts):
             joints[pair[1], :], joints[pair[0], :].copy()
         joints_vis[pair[0], :], joints_vis[pair[1], :] = \
             joints_vis[pair[1], :], joints_vis[pair[0], :].copy()
-
-    return joints*joints_vis, joints_vis
+    joints_vis_mask = (joints_vis>0.1).astype(np.float32)
+    return joints*joints_vis_mask, joints_vis
 
 
 def transform_preds(coords, center, scale, output_size):

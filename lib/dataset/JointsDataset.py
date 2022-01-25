@@ -21,6 +21,7 @@ from iotoolkit.coco_toolkit import JOINTS_PAIR as COCO_JOINTS_PAIR
 from utils.transforms import get_affine_transform
 from utils.transforms import affine_transform
 from utils.transforms import fliplr_joints
+import wtorch.dataset_toolkit as tdt
 import img_utils as wmli
 
 
@@ -116,7 +117,10 @@ class JointsDataset(Dataset):
         return len(self.db)
 
     def __getitem__(self, idx):
-        db_rec = copy.deepcopy(self.db[idx])
+        cur_db = self.db[idx]
+        if isinstance(cur_db,tdt.DataUnit):
+            cur_db = cur_db.sample()
+        db_rec = copy.deepcopy(cur_db)
 
         image_file = db_rec['image']
         filename = db_rec['filename'] if 'filename' in db_rec else ''
@@ -188,7 +192,12 @@ class JointsDataset(Dataset):
             if joints_vis[i, 0] > 0.0:
                 joints[i, 0:2] = affine_transform(joints[i, 0:2], trans)
 
-        target, target_weight = self.generate_target(joints, joints_vis)
+        try:
+            target, target_weight = self.generate_target(joints, joints_vis)
+        except Exception as e:
+            print(db_rec)
+            print(joints,joints_vis)
+            print(e)
 
         target = torch.from_numpy(target)
         target_weight = torch.from_numpy(target_weight)

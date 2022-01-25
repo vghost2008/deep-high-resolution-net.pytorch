@@ -90,8 +90,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % config.PRINT_FREQ == 0:
-        #if i % 2 == 0:
+        if True or i % config.PRINT_FREQ == 0:
             msg = 'Epoch: [{0}][{1}/{2}]\t' \
                   'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                   'Speed {speed:.1f} samples/s\t' \
@@ -127,6 +126,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
             log_weight = make_weight_img(target_weight[:4])
             writer.add_images("input/weight",log_weight,global_steps)
             log_all_variable(writer,model,global_steps)
+            log_optimizer(writer,optimizer,global_steps)
 
 def validate(config, val_loader, val_dataset, model, criterion, output_dir,
              tb_log_dir, writer_dict=None):

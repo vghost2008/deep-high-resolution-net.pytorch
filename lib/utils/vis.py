@@ -9,7 +9,7 @@ from __future__ import division
 from __future__ import print_function
 
 import math
-
+from itertools import count
 import numpy as np
 import torchvision
 import cv2
@@ -42,11 +42,20 @@ def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
             joints = batch_joints[k]
             joints_vis = batch_joints_vis[k]
 
-            for joint, joint_vis in zip(joints, joints_vis):
-                joint[0] = x * width + padding + joint[0]
-                joint[1] = y * height + padding + joint[1]
-                if joint_vis[0]:
-                    cv2.circle(ndarr, (int(joint[0]), int(joint[1])), 2, [255, 0, 0], 2)
+            for i,joint, joint_vis in zip(count(),joints, joints_vis):
+                if joint[0]<0 or joint[0]>width or joint[1]<0 or joint[1]>height:
+                    continue
+                joint_0 = x * width + padding + joint[0]
+                joint_1 = y * height + padding + joint[1]
+                if i<5:
+                    color = (0,0,255)
+                elif i%2==1:
+                    color = (0,255,0)
+                else:
+                    color = (255,0,9)
+                if joint_vis[0]>0.1:
+                    cv2.circle(ndarr, (int(joint_0), int(joint_1)), 2, color, 2)
+                    #cv2.putText(ndarr, f"{k}_{i}", (int(joint_0), int(joint_1)), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 1)
             k = k + 1
     cv2.imwrite(file_name, ndarr)
 
