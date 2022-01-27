@@ -23,6 +23,7 @@ from utils.transforms import affine_transform
 from utils.transforms import fliplr_joints
 import wtorch.dataset_toolkit as tdt
 import img_utils as wmli
+from datadef import *
 
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,9 @@ class JointsDataset(Dataset):
                 joints, joints_vis = fliplr_joints(
                     joints, joints_vis, data_numpy.shape[1], self.flip_pairs)
                 c[0] = data_numpy.shape[1] - c[0] - 1
+        else:
+            #return self.trans_data_type0(data_numpy,db_rec)
+            pass
 
         trans = get_affine_transform(c, s, r, self.image_size)
         input = cv2.warpAffine(
@@ -232,31 +236,51 @@ class JointsDataset(Dataset):
         bbox = db_rec.get('clean_bbox',None)
         if bbox is None:
             bbox = odk.npget_bbox(joints)
-        bbox = odb.npscale_bboxes(bbox,1.25)
+        bbox = odb.npscale_bboxes(bbox,1.25,max_size=data_numpy.shape[:2][::-1])
         score = db_rec['score'] if 'score' in db_rec else 1
         c = db_rec['center']
-        sf = self.scale_factor
-        rf = self.rotation_factor
-        s =  np.clip(np.random.randn()*sf + 1, 1 - sf, 1 + sf)
-        r = np.clip(np.random.randn()*rf, -rf*2, rf*2) \
-                if random.random() <= 0.6 else 0
         
         #s = 1.4
         #r = 45
         #self.save_vis_kps(data_numpy,joints,"a.jpg",bbox)
-        data_numpy,joints,bbox = odk.rotate(r,data_numpy,joints,bbox,s)
-        joints_vis[:,0] = joints[:,2] 
-        joints_vis[:,1] = joints[:,2] 
-        #self.save_vis_kps(data_numpy,joints,"b.jpg",bbox)
-        if self.flip and random.random() <= 0.5:
-            data_numpy,joints,joints_vis,bbox = odk.flip(data_numpy,joints,joints_vis,self.flip_pairs,
+        if self.is_train:
+            sf = self.scale_factor
+            rf = self.rotation_factor
+            s =  np.clip(np.random.randn()*sf + 1, 1 - sf, 1 + sf)
+            r = np.clip(np.random.randn()*rf, -rf*2, rf*2) \
+                if random.random() <= 0.6 else 0
+            data_numpy,joints,bbox = odk.rotate(r,data_numpy,joints,bbox,s)
+            joints_vis[:,0] = joints[:,2] 
+            joints_vis[:,1] = joints[:,2] 
+
+            #self.save_vis_kps(data_numpy,joints,"b.jpg",bbox)
+            if self.flip and random.random() <= 0.5:
+                data_numpy,joints,joints_vis,bbox = odk.flip(data_numpy,joints,joints_vis,self.flip_pairs,
                                                         bbox=bbox)
+        else:
+            r = 0.0
         #self.save_vis_kps(data_numpy,joints,"b1.jpg",bbox)
         #bbox = odk.npget_bbox(joints)
         #bbox = odb.npscale_bboxes(bbox,1.4)
+        org_img = data_numpy
         data_numpy,bbox = self.cut_and_resize(data_numpy,[bbox],size=self.image_size)
         data_numpy = data_numpy[0]
         bbox = bbox[0]
+        img_a = wmli.sub_imagev2(org_img,bbox.astype(np.int32))
+        img_a = wmli.resize_img(img_a,self.image_size)
+        img_b = data_numpy
+        wmli.imwrite("a.jpg",img_a)
+        wmli.imwrite("b.jpg",img_b)
+
+        c = np.array([(bbox[0]+bbox[2])/2,(bbox[1]+bbox[3])/2],dtype=np.float32)
+        scale = np.array(
+            [
+                (bbox[2]-bbox[0]) * 1.0 / self.pixel_std,
+                (bbox[3]-bbox[1]) * 1.0 / self.pixel_std
+            ],
+            dtype=np.float32
+        )
+
         joints = odk.cut2size(joints,bbox,self.image_size)
         #self.save_vis_kps(data_numpy,joints,"c.jpg",bbox)
 
@@ -276,7 +300,7 @@ class JointsDataset(Dataset):
             'joints': joints,
             'joints_vis': joints_vis,
             'center': c,
-            'scale': db_rec['scale'],
+            'scale': scale,
             'rotation': r,
             'score': score
         }

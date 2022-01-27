@@ -33,7 +33,10 @@ def create_logger(cfg, cfg_name, phase='train'):
     model = cfg.MODEL.NAME
     cfg_name = os.path.basename(cfg_name).split('.')[0]
 
-    final_output_dir = root_output_dir / dataset / model / cfg_name
+    if phase == 'train':
+        final_output_dir = root_output_dir / dataset / model / cfg_name
+    else:
+        final_output_dir = root_output_dir / dataset / model / (cfg_name+"_"+phase)
 
     print('=> creating {}'.format(final_output_dir))
     final_output_dir.mkdir(parents=True, exist_ok=True)

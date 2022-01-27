@@ -11,7 +11,7 @@ import torch.nn as nn
 import time
 import logging
 import os
-
+from datadef import *
 import numpy as np
 import torch
 import wtorch.utils as wtu
@@ -90,7 +90,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if True or i % config.PRINT_FREQ == 0:
+        if i % config.PRINT_FREQ == 0:
             msg = 'Epoch: [{0}][{1}/{2}]\t' \
                   'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
                   'Speed {speed:.1f} samples/s\t' \
@@ -152,6 +152,7 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
         for i, (input, target, target_weight, meta) in enumerate(val_loader):
             # compute output
             outputs = model(input)
+            #outputs = target.cuda()
             if isinstance(outputs, list):
                 output = outputs[-1]
             else:
@@ -225,6 +226,7 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
                 prefix = '{}_{}'.format(
                     os.path.join(output_dir, 'val'), i
                 )
+                print(f"Save {prefix}")
                 save_debug_images(config, input, meta, target, pred*4, output,
                                   prefix)
 

@@ -175,7 +175,7 @@ def main():
         final_output_dir, 'checkpoint.pth'
     )
 
-    if cfg.AUTO_RESUME and os.path.exists(checkpoint_file):
+    if False and cfg.AUTO_RESUME and os.path.exists(checkpoint_file):
         logger.info("=> loading checkpoint '{}'".format(checkpoint_file))
         checkpoint = torch.load(checkpoint_file)
         begin_epoch = checkpoint['epoch']
@@ -191,7 +191,6 @@ def main():
         if osp.exists(ckpt_path):
             print(f"Load {ckpt_path}.")
             model.module.load_state_dict(torch.load(ckpt_path), strict=True)
-            
             
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(

@@ -13,6 +13,7 @@ import argparse
 import os
 import pprint
 os.environ['CUDA_VISIBLE_DEVICES'] = "2"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
 
 import torch
 import torch.nn.parallel
@@ -28,6 +29,7 @@ from config import update_config
 from core.loss import JointsMSELoss
 from core.function import validate
 from utils.utils import create_logger
+import wtorch.utils as wtu
 
 import dataset
 import models
@@ -72,10 +74,15 @@ def main():
     update_config(cfg, args)
     cfg.defrost()
     cfg.GPUS = (0,)
+    cfg.GPUS = (0,1,2,3)
+    cfg.TEST.FLIP_TEST = False
+    cfg.DEBUG.SAVE_BATCH_IMAGES_GT = False
+    cfg.DEBUG.SAVE_HEATMAPS_GT = False
+    cfg.DEBUG.SAVE_HEATMAPS_PRED = False
     cfg.freeze()
 
     logger, final_output_dir, tb_log_dir = create_logger(
-        cfg, args.cfg, 'valid')
+        cfg, args.cfg, 'valid_test')
 
     logger.info(pprint.pformat(args))
     logger.info(cfg)
@@ -91,7 +98,11 @@ def main():
 
     if cfg.TEST.MODEL_FILE:
         logger.info('=> loading model from {}'.format(cfg.TEST.MODEL_FILE))
-        model.load_state_dict(torch.load(cfg.TEST.MODEL_FILE), strict=False)
+        data = torch.load(cfg.TEST.MODEL_FILE)
+        if 'state_dict' in data:
+            data = data['state_dict']
+        data = wtu.remove_prefix_from_state_dict(data,prefix="module.")
+        model.load_state_dict(data, strict=True)
     else:
         model_state_file = os.path.join(
             final_output_dir, 'final_state.pth'

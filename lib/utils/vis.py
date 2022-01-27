@@ -57,7 +57,7 @@ def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
                     cv2.circle(ndarr, (int(joint_0), int(joint_1)), 2, color, 2)
                     #cv2.putText(ndarr, f"{k}_{i}", (int(joint_0), int(joint_1)), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 1)
             k = k + 1
-    cv2.imwrite(file_name, ndarr)
+    cv2.imwrite(file_name, ndarr[...,::-1])
 
 
 def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
@@ -122,7 +122,7 @@ def save_batch_heatmaps(batch_image, batch_heatmaps, file_name,
 
         grid_image[height_begin:height_end, 0:heatmap_width, :] = resized_image
 
-    cv2.imwrite(file_name, grid_image)
+    cv2.imwrite(file_name, grid_image[...,::-1])
 
 
 def save_debug_images(config, input, meta, target, joints_pred, output,

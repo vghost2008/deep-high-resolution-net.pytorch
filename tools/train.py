@@ -11,7 +11,7 @@ from lib.datadef import get_log_dir
 import os.path as osp
 import wtorch.train_toolkit as wtt
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "1,2,3"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import torch
 import torch.nn.parallel

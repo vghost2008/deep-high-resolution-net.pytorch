@@ -7,7 +7,8 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
+import copy
+from datadef import *
 from collections import defaultdict
 from collections import OrderedDict
 import logging
@@ -63,7 +64,7 @@ class COCOMPIIDataset(JointsDataset):
         self.lpset_img_dir = "/home/wj/ai/mldata1/lspet/lspet/images"
         self.penn_anno_path = "/home/wj/ai/mldata1/penn_action/Penn_Action/coco_labels"
         self.penn_img_dir = "/home/wj/ai/mldata1/penn_action/Penn_Action/frames"
-        self.crowd_pose_anno_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt',
+        self.crowd_pose_anno_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt'
         self.crowd_pose_img_dir =   '/home/wj/ai/mldata1/crowd_pose/images'
 
         self.nms_thre = cfg.TEST.NMS_THRE
@@ -140,7 +141,7 @@ class COCOMPIIDataset(JointsDataset):
     def _get_db(self):
         gt_db = []
         if self.is_train:
-            '''if self.is_train or self.use_gt_bbox:
+            if self.is_train or self.use_gt_bbox:
                 # use ground truth bbox
                 gt_db = self._load_coco_keypoint_annotations()
             else:
@@ -149,8 +150,10 @@ class COCOMPIIDataset(JointsDataset):
             
             gt_db.extend(self._load_mpii_keypoint_annotations())
             gt_db.extend(self._load_lpset_keypoint_annotations())
-            gt_db.extend(self._load_penn_action_keypoint_annotations())'''
+            gt_db.extend(self._load_penn_action_keypoint_annotations())
             gt_db.extend(self._load_crowd_pose_keypoint_annotations())
+            '''if is_debug():
+                gt_db.extend(self._load_penn_action_keypoint_annotations())'''
         else:
             if self.is_train or self.use_gt_bbox:
                 # use ground truth bbox
@@ -212,7 +215,7 @@ class COCOMPIIDataset(JointsDataset):
             with open(file,"rb") as f:
                 datas = pickle.load(f)
                 for data in datas:
-                    tmp_db = self._load_mpii_keypoint_annotation_kernal(data,img_dir=self.penn_img_dir)
+                    tmp_db = self._load_penn_action_keypoint_annotation_kernal(data,img_dir=self.penn_img_dir)
                     gt_db.extend(tmp_db)
         
         print(f"Total load {len(gt_db)} penn action data.")
@@ -319,8 +322,11 @@ class COCOMPIIDataset(JointsDataset):
             joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
             for ipt in range(self.num_joints):
                 t_vis = kps[ipt,2]
+                if t_vis<0.99 and ipt<5:
+                    t_vis = t_vis*0.5
                 if t_vis > 1:
                     t_vis = 1
+                joints_3d[ipt,2] = t_vis
                 joints_3d_vis[ipt, 0] = t_vis
                 joints_3d_vis[ipt, 1] = t_vis
                 joints_3d_vis[ipt, 2] = 0
@@ -350,6 +356,70 @@ class COCOMPIIDataset(JointsDataset):
 
         return rec
 
+    def _load_penn_action_keypoint_annotation_kernal(self, data,img_dir):
+        """
+        coco ann: [u'segmentation', u'area', u'iscrowd', u'image_id', u'bbox', u'category_id', u'id']
+        iscrowd:
+            crowd instances are handled by marking their overlaps with all categories to -1
+            and later excluded in training
+        bbox:
+            [x1, y1, w, h]
+        :param index: coco image id
+        :return: db entry
+        """
+        img_name,bboxes,all_kps = data
+        if bboxes.shape[0]==0:
+            return []
+
+        rec = []
+        for bbox,kps in zip(bboxes,all_kps):
+            # ignore objs without keypoints annotation
+            if np.max(kps[:,:2]) == 0:
+                continue
+
+            joints_3d = kps
+            joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
+            for ipt in range(self.num_joints):
+                t_vis = kps[ipt,2]
+                if t_vis<0.99 and ipt<5:
+                    t_vis = t_vis*0.5
+                if t_vis > 1:
+                    t_vis = 1
+                joints_3d[ipt,2] = t_vis
+                joints_3d_vis[ipt, 0] = t_vis
+                joints_3d_vis[ipt, 1] = t_vis
+                joints_3d_vis[ipt, 2] = 0
+            src_idxs = list(range(5,17)) 
+            dst_idxs = [6,5,8,7,10,9,12,11,14,13,16,15]
+            tmp_joints_3d = copy.deepcopy(joints_3d)
+            tmp_joints_3d_vis = copy.deepcopy(joints_3d_vis)
+            joints_3d[dst_idxs] = tmp_joints_3d[src_idxs]
+            joints_3d_vis[dst_idxs] = tmp_joints_3d_vis[src_idxs]
+
+            clean_bbox = [bbox[0],bbox[1],bbox[2]-bbox[0],bbox[3]-bbox[1]]
+            if clean_bbox[2]<2 or clean_bbox[3]<2:
+                print(f"Skip {img_dir}/{img_name} {bbox}")
+                continue
+            total_kps_nr = np.sum((kps[...,2]>0.1).astype(np.int32))
+            if total_kps_nr<3:
+                print(f"Skip {img_dir}/{img_name} {total_kps_nr} {kps} {bbox}")
+                continue
+            kp_bbox = odk.npget_bbox(joints_3d)
+            if kp_bbox is not None:
+                bbox = odb.bbox_of_boxes([bbox,kp_bbox])
+            center, scale = self._box2cs(clean_bbox)
+            rec.append({
+                'image': osp.join(img_dir,img_name),
+                'center': center,
+                'scale': scale,
+                'joints_3d': joints_3d,
+                'joints_3d_vis': joints_3d_vis,
+                'clean_bbox':bbox,
+                'filename': img_name,
+                'imgnum': 0,
+            })
+
+        return rec
     def _box2cs(self, box):
         x, y, w, h = box[:4]
         return self._xywh2cs(x, y, w, h)

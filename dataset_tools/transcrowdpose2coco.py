@@ -27,7 +27,7 @@ if __name__ == "__main__":
     for path in file_path:
         data_t = read_crowd_pose(path)
         datas.extend(data_t)
-    do_vis = True
+    do_vis = False
     new_coco_data = []
     for i,data in enumerate(datas):
         sys.stdout.write(f"\r{i}/{len(datas)}")
@@ -52,7 +52,7 @@ if __name__ == "__main__":
             wmli.imwrite(save_path,img)
         new_coco_data.append([img_name,org_bboxes,kps])
 
-    coco_pt_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt',
+    coco_pt_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt'
     with open(coco_pt_path,"wb") as f:
         pickle.dump(new_coco_data,f)
     exit(0)

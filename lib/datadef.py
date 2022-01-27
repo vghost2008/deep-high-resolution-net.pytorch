@@ -25,3 +25,8 @@ def get_ckpt_dir():
 def get_log_dir(suffix=""):
     torch_loger_dir = get_data_dir("tmp/tbloger"+suffix)
     return torch_loger_dir
+
+
+def is_debug(default_value = True):
+    print(f"is_debug {default_value}")
+    return default_value
