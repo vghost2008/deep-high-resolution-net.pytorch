@@ -14,17 +14,27 @@ import logging
 import torch
 import torch.nn as nn
 from wtorch.utils import *
+from wtorch.nn import *
+from einops import rearrange
 
 
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
 
 
-def conv3x3(in_planes, out_planes, stride=1):
+def conv3x3(in_planes, out_planes, stride=1,bias=False):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=1, bias=False)
+                     padding=1, bias=bias)
 
+def get_norm(planes,momentum=None,type="layer_norm"):
+    if type == "bn":
+        return nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+    elif type == "layer_norm":
+        return LayerNorm(planes)
+
+def get_activation_fn(*args,**kwargs):
+    return nn.GELU()
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -32,26 +42,29 @@ class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.bn1 = get_norm(planes, momentum=BN_MOMENTUM)
+        self.relu = get_activation_fn(inplace=True)
+        self.conv2 = conv3x3(planes, planes,bias=True)
         self.downsample = downsample
         self.stride = stride
+        if self.stride == 1:
+            self.drop_path = nn.Dropout2d(p=0.08)
+        else:
+            self.drop_path = None
 
     def forward(self, x):
         residual = x
 
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
 
         out = self.conv2(out)
-        out = self.bn2(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
-
+        
+        if self.drop_path is not None:
+            out = self.drop_path(out)
         out += residual
         out = self.relu(out)
 
@@ -64,15 +77,12 @@ class Bottleneck(nn.Module):
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.bn2 = get_norm(planes, momentum=BN_MOMENTUM)
         self.conv3 = nn.Conv2d(planes, planes * self.expansion, kernel_size=1,
-                               bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * self.expansion,
-                                  momentum=BN_MOMENTUM)
-        self.relu = nn.ReLU(inplace=True)
+                               bias=True)
+        self.relu = get_activation_fn(inplace=True)
         self.downsample = downsample
         self.stride = stride
 
@@ -80,21 +90,17 @@ class Bottleneck(nn.Module):
         residual = x
 
         out = self.conv1(x)
-        out = self.bn1(out)
         out = self.relu(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
-        out = self.relu(out)
 
         out = self.conv3(out)
-        out = self.bn3(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
 
         out += residual
-        out = self.relu(out)
 
         return out
 
@@ -115,7 +121,7 @@ class HighResolutionModule(nn.Module):
         self.branches = self._make_branches(
             num_branches, blocks, num_blocks, num_channels)
         self.fuse_layers = self._make_fuse_layers()
-        self.relu = nn.ReLU(True)
+        self.relu = get_activation_fn(True)
 
     def _check_branches(self, num_branches, blocks, num_blocks,
                         num_inchannels, num_channels):
@@ -148,7 +154,7 @@ class HighResolutionModule(nn.Module):
                     num_channels[branch_index] * block.expansion,
                     kernel_size=1, stride=stride, bias=False
                 ),
-                nn.BatchNorm2d(
+                get_norm(
                     num_channels[branch_index] * block.expansion,
                     momentum=BN_MOMENTUM
                 ),
@@ -203,7 +209,7 @@ class HighResolutionModule(nn.Module):
                                 num_inchannels[i],
                                 1, 1, 0, bias=False
                             ),
-                            nn.BatchNorm2d(num_inchannels[i]),
+                            get_norm(num_inchannels[i]),
                             nn.Upsample(scale_factor=2**(j-i), mode='nearest')
                         )
                     )
@@ -221,7 +227,7 @@ class HighResolutionModule(nn.Module):
                                         num_outchannels_conv3x3,
                                         3, 2, 1, bias=False
                                     ),
-                                    nn.BatchNorm2d(num_outchannels_conv3x3)
+                                    get_norm(num_outchannels_conv3x3)
                                 )
                             )
                         else:
@@ -233,8 +239,8 @@ class HighResolutionModule(nn.Module):
                                         num_outchannels_conv3x3,
                                         3, 2, 1, bias=False
                                     ),
-                                    nn.BatchNorm2d(num_outchannels_conv3x3),
-                                    nn.ReLU(True)
+                                    get_norm(num_outchannels_conv3x3),
+                                    get_activation_fn(True)
                                 )
                             )
                     fuse_layer.append(nn.Sequential(*conv3x3s))
@@ -271,6 +277,31 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
+class FCBlock(nn.Module):
+    def __init__(self,channels,width,height):
+        super().__init__()
+        channels1 = width*height
+        self.fc0 = nn.Linear(channels1,channels1,bias=False)
+        self.norm0 = nn.LayerNorm(channels1)
+        self.fc1 = nn.Linear(channels,channels,bias=False)
+        self.norm1 = nn.LayerNorm(channels)
+        self.relu = get_activation_fn()
+    
+    def forward(self,x):
+        residual = x
+        shape = x.shape
+        x = rearrange(x,'b c h w -> b c (h w)')
+        x = self.fc0(x)
+        x = self.norm0(x)
+        x = rearrange(x,'b c s -> b s c')
+        x = self.fc1(x)
+        x = self.norm1(x)
+        x = rearrange(x,'b s c -> b c s')
+        x = torch.reshape(x,shape)
+        x = x+residual
+        x = self.relu(x)
+        return x
+
 
 class PoseHighResolutionNet(nn.Module):
 
@@ -280,13 +311,10 @@ class PoseHighResolutionNet(nn.Module):
         super(PoseHighResolutionNet, self).__init__()
 
         # stem net
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=4, stride=4,
                                bias=False)
-        self.bn1 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1,
-                               bias=False)
-        self.bn2 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
-        self.relu = nn.ReLU(inplace=True)
+        self.bn1 = get_norm(64, momentum=BN_MOMENTUM)
+        self.relu = get_activation_fn(inplace=True)
         self.layer1 = self._make_layer(Bottleneck, 64, 4)
 
         self.stage2_cfg = extra['STAGE2']
@@ -321,6 +349,8 @@ class PoseHighResolutionNet(nn.Module):
         self.stage4, pre_stage_channels = self._make_stage(
             self.stage4_cfg, num_channels, multi_scale_output=False)
 
+        self.fc_block0 = FCBlock(pre_stage_channels[0],48,64)
+        self.fc_block1 = FCBlock(pre_stage_channels[0],48,64)
         self.final_layer = nn.Conv2d(
             in_channels=pre_stage_channels[0],
             out_channels=cfg['MODEL']['NUM_JOINTS'],
@@ -348,8 +378,8 @@ class PoseHighResolutionNet(nn.Module):
                                 num_channels_cur_layer[i],
                                 3, 1, 1, bias=False
                             ),
-                            nn.BatchNorm2d(num_channels_cur_layer[i]),
-                            nn.ReLU(inplace=True)
+                            get_norm(num_channels_cur_layer[i]),
+                            get_activation_fn(inplace=True)
                         )
                     )
                 else:
@@ -365,8 +395,8 @@ class PoseHighResolutionNet(nn.Module):
                             nn.Conv2d(
                                 inchannels, outchannels, 3, 2, 1, bias=False
                             ),
-                            nn.BatchNorm2d(outchannels),
-                            nn.ReLU(inplace=True)
+                            get_norm(outchannels),
+                            get_activation_fn(inplace=True)
                         )
                     )
                 transition_layers.append(nn.Sequential(*conv3x3s))
@@ -381,7 +411,7 @@ class PoseHighResolutionNet(nn.Module):
                     self.inplanes, planes * block.expansion,
                     kernel_size=1, stride=stride, bias=False
                 ),
-                nn.BatchNorm2d(planes * block.expansion, momentum=BN_MOMENTUM),
+                get_norm(planes * block.expansion, momentum=BN_MOMENTUM),
             )
 
         layers = []
@@ -438,9 +468,6 @@ class PoseHighResolutionNet(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.relu(x)
         x = self.layer1(x)
 
         x_list = []
@@ -466,8 +493,9 @@ class PoseHighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
         y_list = self.stage4(x_list)
-
-        x = self.final_layer(y_list[0])
+        x = self.fc_block0(y_list[0])
+        x = self.fc_block1(x)
+        x = self.final_layer(x)
 
         return x
 
@@ -480,7 +508,7 @@ class PoseHighResolutionNet(nn.Module):
                 for name, _ in m.named_parameters():
                     if name in ['bias']:
                         nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, LayerNorm):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.ConvTranspose2d):

@@ -108,7 +108,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
             writer.add_scalar('train_acc', acc.val, global_steps)
             writer_dict['train_global_steps'] = global_steps + 1
 
-            prefix = '{}_{}'.format(os.path.join(output_dir, 'train'), i)
+            prefix = '{}_{}'.format(os.path.join(output_dir, 'train'), global_steps)
             save_debug_images(config, input, meta, target, pred*4, output,
                               prefix)
             log_img = wtu.unnormalize(input[:4],mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])

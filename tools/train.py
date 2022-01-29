@@ -98,6 +98,7 @@ def main():
     model = eval('models.'+cfg.MODEL.NAME+'.get_pose_net')(
         cfg, is_train=True
     )
+    print(model)
 
     # copy model file
     this_dir = os.path.dirname(__file__)
@@ -187,6 +188,7 @@ def main():
             checkpoint_file, checkpoint['epoch']))
     else:
         ckpt_path = "weights/pose_hrnet_w48_384x288.pth"
+        ckpt_path = cfg.MODEL.PRETRAINED
         if osp.exists(ckpt_path):
             print(f"Load {ckpt_path}.")
             model.module.load_state_dict(torch.load(ckpt_path), strict=True)
@@ -206,7 +208,7 @@ def main():
         # train for one epoch
         train(cfg, train_loader, model, criterion, optimizer, epoch,
               final_output_dir, tb_log_dir, writer_dict)
-        continue
+        #continue
 
 
         # evaluate on validation set

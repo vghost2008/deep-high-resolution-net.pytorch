@@ -66,6 +66,8 @@ class COCOMPIIDataset(JointsDataset):
         self.penn_img_dir = "/home/wj/ai/mldata1/penn_action/Penn_Action/frames"
         self.crowd_pose_anno_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt'
         self.crowd_pose_img_dir =   '/home/wj/ai/mldata1/crowd_pose/images'
+        self.aic_anno_path = '/home/wj/ai/mldata/aic/aic_coco.pt'
+        self.aic_img_dir =   '/home/wj/ai/mldata/aic'
 
         self.nms_thre = cfg.TEST.NMS_THRE
         self.image_thre = cfg.TEST.IMAGE_THRE
@@ -152,7 +154,9 @@ class COCOMPIIDataset(JointsDataset):
             gt_db.extend(self._load_lpset_keypoint_annotations())
             gt_db.extend(self._load_penn_action_keypoint_annotations())
             gt_db.extend(self._load_crowd_pose_keypoint_annotations())
+            gt_db.extend(self._load_aic_keypoint_annotations())
             '''if is_debug():
+                gt_db.extend(self._load_lpset_keypoint_annotations())
                 gt_db.extend(self._load_penn_action_keypoint_annotations())'''
         else:
             if self.is_train or self.use_gt_bbox:
@@ -196,6 +200,7 @@ class COCOMPIIDataset(JointsDataset):
         
         print(f"Total load {len(gt_db)} crowd pose data.")
         return gt_db
+
     def _load_lpset_keypoint_annotations(self):
         gt_db = []
         with open(self.lpset_anno_path,"rb") as f:
@@ -205,6 +210,19 @@ class COCOMPIIDataset(JointsDataset):
                 gt_db.extend(tmp_db)
         
         print(f"Total load {len(gt_db)} lpset data.")
+        return gt_db
+
+    def _load_aic_keypoint_annotations(self):
+        gt_db = []
+        with open(self.aic_anno_path,"rb") as f:
+            datas = pickle.load(f)
+            for data in datas:
+                tmp_db = self._load_mpii_keypoint_annotation_kernal(data,img_dir=self.aic_img_dir)
+                gt_db.extend(tmp_db)
+        
+        print(f"Total load {len(gt_db)} aic data.")
+        gt_db = tdt.make_data_unit(gt_db,total_nr=100000)
+        print(f"Total make {len(gt_db)} aic data unit.")
         return gt_db
 
     def _load_penn_action_keypoint_annotations(self):

@@ -12,7 +12,6 @@ import os.path as osp
 import wtorch.train_toolkit as wtt
 import sys
 import time
-os.environ['CUDA_VISIBLE_DEVICES'] = "1,2,3"
 
 import torch
 import torch.nn.parallel
@@ -54,7 +53,7 @@ def parse_args():
                         help="Modify config options using the command-line",
                         default=None,
                         nargs=argparse.REMAINDER)
-
+    parser.add_argument("--gpus", nargs='+',type=int, help="gpus for training.")
     # philly
     parser.add_argument('--modelDir',
                         help='model directory',
@@ -82,14 +81,18 @@ def main():
     args = parse_args()
     update_config(cfg, args)
 
+    if args.gpus is not None:
+        gpu_str = wtt.get_gpus_str(args.gpus)
+        os.environ['CUDA_VISIBLE_DEVICES'] = gpu_str
+        cfg.defrost()
+        cfg.GPUS = tuple(range(len(args.gpus)))
+        cfg.freeze()
+
     logger, final_output_dir, tb_log_dir = create_logger(
         cfg, args.cfg, 'train')
 
     logger.info(pprint.pformat(args))
     logger.info(cfg)
-    '''cfg.defrost()
-    cfg.GPUS = 0,
-    cfg.freeze()'''
 
     # cudnn related setting
     cudnn.benchmark = cfg.CUDNN.BENCHMARK
@@ -188,6 +191,7 @@ def main():
             checkpoint_file, checkpoint['epoch']))
     else:
         ckpt_path = "weights/pose_hrnet_w48_384x288.pth"
+        ckpt_path = cfg.MODEL.PRETRAINED
         if osp.exists(ckpt_path):
             print(f"Load {ckpt_path}.")
             model.module.load_state_dict(torch.load(ckpt_path), strict=True)

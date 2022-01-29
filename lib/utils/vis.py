@@ -129,7 +129,9 @@ def save_debug_images(config, input, meta, target, joints_pred, output,
                       prefix):
     if not config.DEBUG.DEBUG:
         return
-
+    with open(f"{prefix}.txt","w") as f:
+        for file_path in meta['image']:
+            f.write(file_path+"\n")
     if config.DEBUG.SAVE_BATCH_IMAGES_GT:
         save_batch_image_with_joints(
             input, meta['joints'], meta['joints_vis'],

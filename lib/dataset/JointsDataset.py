@@ -179,7 +179,7 @@ class JointsDataset(Dataset):
                     joints, joints_vis, data_numpy.shape[1], self.flip_pairs)
                 c[0] = data_numpy.shape[1] - c[0] - 1
         else:
-            #return self.trans_data_type0(data_numpy,db_rec)
+            return self.trans_data_type0(data_numpy,db_rec)
             pass
 
         trans = get_affine_transform(c, s, r, self.image_size)
@@ -262,15 +262,15 @@ class JointsDataset(Dataset):
         #self.save_vis_kps(data_numpy,joints,"b1.jpg",bbox)
         #bbox = odk.npget_bbox(joints)
         #bbox = odb.npscale_bboxes(bbox,1.4)
-        org_img = data_numpy
+        #org_img = data_numpy
         data_numpy,bbox = self.cut_and_resize(data_numpy,[bbox],size=self.image_size)
         data_numpy = data_numpy[0]
         bbox = bbox[0]
-        img_a = wmli.sub_imagev2(org_img,bbox.astype(np.int32))
+        '''img_a = wmli.sub_imagev2(org_img,bbox.astype(np.int32))
         img_a = wmli.resize_img(img_a,self.image_size)
         img_b = data_numpy
         wmli.imwrite("a.jpg",img_a)
-        wmli.imwrite("b.jpg",img_b)
+        wmli.imwrite("b.jpg",img_b)'''
 
         c = np.array([(bbox[0]+bbox[2])/2,(bbox[1]+bbox[3])/2],dtype=np.float32)
         scale = np.array(

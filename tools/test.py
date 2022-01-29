@@ -13,7 +13,7 @@ import argparse
 import os
 import pprint
 os.environ['CUDA_VISIBLE_DEVICES'] = "2"
-os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import torch
 import torch.nn.parallel
@@ -73,8 +73,8 @@ def main():
     args = parse_args()
     update_config(cfg, args)
     cfg.defrost()
-    cfg.GPUS = (0,)
     cfg.GPUS = (0,1,2,3)
+    cfg.GPUS = (0,)
     cfg.TEST.FLIP_TEST = False
     cfg.DEBUG.SAVE_BATCH_IMAGES_GT = False
     cfg.DEBUG.SAVE_HEATMAPS_GT = False
