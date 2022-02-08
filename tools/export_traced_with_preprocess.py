@@ -23,8 +23,19 @@ config2 = {
     'ckpt':"weights/pose_hrnet_w32_256x192.pth",
     'input_shape':[1, 3,256, 192],
     }
+config11 = {
+    'cfg':'experiments/coco/hrnet/w48_384x288_adam_lr1e-3.yaml',
+    'ckpt':"boeweights/w48_384x288_811.pth",
+    'input_shape':[1, 3,384, 288],
+    }
 
-export_config = config1
+config21 = {
+    'cfg':'experiments/coco/hrnet/w32_256x192_adam_lr1e-3.yaml',
+    'ckpt':"boeweights/w32_256x192_790.pth",
+    'input_shape':[1, 3,256, 192],
+    }
+
+export_config = config11
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
@@ -71,6 +82,7 @@ def main():
     )
     pose_model.to(device)
     state_dict = torch.load(export_config['ckpt'])
+    print(f"Load {export_config['ckpt']}")
     pose_model.load_state_dict(state_dict, strict=False)
     pose_model.eval()
 

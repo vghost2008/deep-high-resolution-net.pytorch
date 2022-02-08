@@ -33,14 +33,33 @@ import wtorch.utils as wtu
 
 import dataset
 import models
+config_w48 = {
+    'cfg':'experiments/coco/hrnet/w48_384x288_adam_lr1e-3-finetune.yaml',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_hrnet/w48_384x288_adam_lr1e-3-finetune/final_state.pth',
+    'ckpt':'/home/wj/ai/work/deep-high-resolution-net.pytorch/boeweights/w48_384x288_811.pth',
+    'gtbboxes':True,
+}
+config_w32 = {
+    'cfg':'experiments/coco/hrnet/w32_256x192_adam_lr1e-3-finetune.yaml',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_hrnet/w32_256x192_adam_lr1e-3-finetune/final_state.pth',
+    'ckpt':'/home/wj/ai/work/deep-high-resolution-net.pytorch/boeweights/w32_256x192_790.pth',
+    'gtbboxes':True,
+}
+config_ww32 = {
+    'cfg':'experiments/coco/whrnet/w32_256x192_adam_lr1e-3.yaml',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet/w32_256x192_adam_lr1e-3/final_state.pth',
+    'gtbboxes':True,
+}
 
+test_config = config_w32
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
     # general
     parser.add_argument('--cfg',
                         help='experiment configure file name',
-                        required=True,
+                        default=test_config['cfg'],
+                        required=False,
                         type=str)
 
     parser.add_argument('opts',
@@ -79,6 +98,8 @@ def main():
     cfg.DEBUG.SAVE_BATCH_IMAGES_GT = False
     cfg.DEBUG.SAVE_HEATMAPS_GT = False
     cfg.DEBUG.SAVE_HEATMAPS_PRED = False
+    cfg.TEST.MODEL_FILE = test_config['ckpt']
+    cfg.TEST.USE_GT_BBOX = test_config['gtbboxes']
     cfg.freeze()
 
     logger, final_output_dir, tb_log_dir = create_logger(

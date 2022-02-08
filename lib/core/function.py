@@ -216,10 +216,11 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
 
             if i % config.PRINT_FREQ == 0:
                 msg = 'Test: [{0}/{1}]\t' \
+                       'idx {idx}' \
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t' \
                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t' \
                       'Accuracy {acc.val:.3f} ({acc.avg:.3f})'.format(
-                          i, len(val_loader), batch_time=batch_time,
+                          i, len(val_loader), idx=idx,batch_time=batch_time,
                           loss=losses, acc=acc)
                 logger.info(msg)
 
@@ -269,7 +270,7 @@ def validate(config, val_loader, val_dataset, model, criterion, output_dir,
                     global_steps
                 )
             writer_dict['valid_global_steps'] = global_steps + 1
-
+    print('idx=',idx)
     return perf_indicator
 
 

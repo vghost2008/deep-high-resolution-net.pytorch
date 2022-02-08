@@ -9,7 +9,7 @@ from keypoints.get_keypoints import *
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 pdir_path = osp.dirname(osp.dirname(__file__))
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "1"
+os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 
 class Model:
     def __init__(self):
@@ -24,7 +24,7 @@ class Model:
         return img
 
 if __name__ == "__main__":
-    vd = VideoDemo(Model(),save_path="tmp0.mp4",buffer_size=1,show_video=False,max_frame_cn=1000)
+    vd = VideoDemo(Model(),save_path="tmp1.mp4",buffer_size=1,show_video=False,max_frame_cn=10)
     #video_path = "/home/wj/ai/mldata/boeoffice/test_data/test3.webm"
     print(f"DATE: 2021-11-29")
     '''video_path = "/home/wj/ai/mldata/global_traj/tennis1.mp4"
