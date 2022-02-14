@@ -8,8 +8,9 @@ import pickle
 from iotoolkit.coco_toolkit import JOINTS_PAIR
 import sys
 import os
+import random
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 
 
 
@@ -27,6 +28,11 @@ if __name__ == "__main__":
     for path in file_path:
         data_t = read_crowd_pose(path)
         datas.extend(data_t)
+    
+    '''random.seed(21)
+    random.shuffle(datas)
+    datas = datas[:200]
+    do_vis = True'''
     do_vis = False
     new_coco_data = []
     for i,data in enumerate(datas):
@@ -47,12 +53,12 @@ if __name__ == "__main__":
             t_bboxes = odb.npchangexyorder(t_bboxes)
             img = odv.draw_bboxes(img,bboxes=t_bboxes,is_relative_coordinate=False)
             img = odv.draw_keypoints(img,kps,no_line=False,joints_pair=JOINTS_PAIR)
-            img = odv.draw_keypoints(img,coco_kps,no_line=True)
+            #img = odv.draw_keypoints(img,coco_kps,no_line=True)
             save_path = osp.join(save_dir,img_name)
             wmli.imwrite(save_path,img)
         new_coco_data.append([img_name,org_bboxes,kps])
 
-    coco_pt_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt'
+    coco_pt_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_cocov2.pt'
     with open(coco_pt_path,"wb") as f:
         pickle.dump(new_coco_data,f)
     exit(0)

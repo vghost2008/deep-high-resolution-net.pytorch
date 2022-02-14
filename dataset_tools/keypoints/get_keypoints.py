@@ -52,6 +52,7 @@ class PersonDetection:
         return bboxes,probs
 
 class KPDetection:
+    threshold = 0.3
     def __init__(self) -> None:
         onnx_path = osp.join(curdir_path,"keypoints.onnx")
         self.model = ort.InferenceSession(onnx_path)
@@ -151,11 +152,12 @@ class KPDetection:
         preds[:, :, 0] = (preds[:, :, 0]) % width #x
         preds[:, :, 1] = np.floor((preds[:, :, 1]) / width) #y
 
-        pred_mask = np.tile(np.greater(maxvals, 0.05), (1, 1, 2))
+        pred_maskf = np.greater(maxvals, KPDetection.threshold).astype(np.float32)
+        pred_mask = np.tile(np.greater(maxvals, KPDetection.threshold), (1, 1, 2))
         pred_mask = pred_mask.astype(np.float32)
 
         preds *= pred_mask
-        return preds, maxvals
+        return preds, maxvals*pred_maskf
 
     @staticmethod
     def get_final_preds(batch_heatmaps):
@@ -235,6 +237,21 @@ class KPDetection:
         output = self.get_final_preds(output)
         offset,scalar = self.get_offset_and_scalar(bboxes)
         output[...,:2] = output[...,:2]*scalar+offset
+        left_right_pairs = [[1,2],[3,4]]
+        nr = output.shape[0]
+        for i in range(nr):
+            is_good = True
+            for pair in left_right_pairs:
+                l,r = pair
+                if output[i,l,0]<output[i,r,0] or output[i,l,2]<KPDetection.threshold or output[i,r,2]<KPDetection.threshold:
+                    is_good = False
+                    break
+            if not is_good:
+                output[i,0] = 0.0
+                for pair in left_right_pairs:
+                    l,r = pair
+                    output[i,l] = 0.0
+                    output[i,r] = 0.0
         if return_fea:
             return output,output_fea,bboxes
         return output

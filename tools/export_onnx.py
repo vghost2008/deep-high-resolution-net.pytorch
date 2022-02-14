@@ -21,15 +21,15 @@ config1 = {
 
 config2 = {
     'cfg':'experiments/coco/hrnet/w32_256x192_adam_lr1e-3.yaml',
-    'ckpt':"weights/pose_hrnet_w32_256x192.pth",
+    'ckpt':"boeweights/w32_256x192_790.pth",
     'input_shape':[1, 3,256, 192],
     }
 config3 = {
-    'cfg':'experiments/coco/whrnet/w32_256x192_adam_lr1e-3.yaml',
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-finetune.yaml',
     'ckpt':"",
-    'input_shape':[1, 3,256, 192],
+    'input_shape':[1, 3,384, 288],
     }
-export_config = config3
+export_config = config2
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
     # general
@@ -68,12 +68,14 @@ def main():
     if ckpt is not None and ckpt != "" and osp.exists(ckpt):
         state_dict = torch.load(ckpt)
         pose_model.load_state_dict(state_dict, strict=False)
-        logger.info("loading checkpoint done.")
+        logger.info(f"loading checkpoint {ckpt} done.")
     else:
         print(f"===============================================================")
         print(f"Find ckpt {ckpt} faild.")
         print(f"===============================================================")
     pose_model.eval()
+    pose_model.add_preprocess = True
+
 
     #dummy_input = torch.randn(args.batch_size, 3, exp.test_size[0], exp.test_size[1])
     #dummy_input = torch.randn(args.batch_size, 3, exp.test_size[0], exp.test_size[1])
@@ -92,14 +94,15 @@ def main():
         input_names=["input_0"],
         output_names=["output_0"],
         dynamic_axes={"input_0": {0: 'B'},
-                      "output_0": {0: 'B'}} 
+                      "output_0": {0: 'B'}} ,
+        opset_version=11,
+        
     )
     logger.info("generated onnx model named {}".format(output_path))
 
 
     input_shapes =  list(dummy_input.shape)
         
-    return
     onnx_model = onnx.load(output_path)
     model_simp, check = simplify(onnx_model,
                                  dynamic_input_shape=dynamic,

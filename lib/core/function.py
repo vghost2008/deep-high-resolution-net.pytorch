@@ -53,6 +53,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
     model.train()
 
     end = time.time()
+    scale_factor = config.MODEL.IMAGE_SIZE[0]//config.MODEL.HEATMAP_SIZE[0]
     for i, (input, target, target_weight, meta) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -116,10 +117,10 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
             log_basic_info(writer,"input/images",input,global_steps)
             log_target = make_heat_map_img(target.cpu()[:4])
             writer.add_images("target_heat_map",log_target,global_steps)
-            log_target =  nn.functional.interpolate(log_target,scale_factor=4)
+            log_target =  nn.functional.interpolate(log_target,scale_factor=scale_factor)
             log_img2 = wtu.merge_imgs_heatmap(log_img,log_target,channel=1,min=0.0,max=1.0)
             writer.add_images("input/merged",log_img2,global_steps)
-            log_output =  nn.functional.interpolate(output[:4].detach().cpu(),scale_factor=4)
+            log_output =  nn.functional.interpolate(output[:4].detach().cpu(),scale_factor=scale_factor)
             log_output = make_heat_map_img(log_output)
             log_img3 = wtu.merge_imgs_heatmap(log_img,log_output,channel=1,min=0.0,max=1.0)
             writer.add_images("input/merged_output",log_img3,global_steps)

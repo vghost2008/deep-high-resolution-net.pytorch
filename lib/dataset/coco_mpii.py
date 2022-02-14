@@ -58,15 +58,15 @@ class COCOMPIIDataset(JointsDataset):
     '''
     def __init__(self, cfg, root, image_set, is_train, transform=None):
         super().__init__(cfg, root, image_set, is_train, transform)
-        self.mpii_anno_path = "/home/wj/ai/mldata1/MPII/MPII/mpii_human_pose_v1_u12_2/mpii_coco.pt"
+        self.mpii_anno_path = "/home/wj/ai/mldata1/MPII/MPII/mpii_human_pose_v1_u12_2/mpii_cocov2.pt"
         self.mpii_img_dir = "/home/wj/ai/mldata1/MPII/MPII/images"
         self.lpset_anno_path = "/home/wj/ai/mldata1/lspet/lspet/lspet_coco.pt"
         self.lpset_img_dir = "/home/wj/ai/mldata1/lspet/lspet/images"
         self.penn_anno_path = "/home/wj/ai/mldata1/penn_action/Penn_Action/coco_labels"
         self.penn_img_dir = "/home/wj/ai/mldata1/penn_action/Penn_Action/frames"
-        self.crowd_pose_anno_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_coco.pt'
+        self.crowd_pose_anno_path = '/home/wj/ai/mldata1/crowd_pose/CrowdPose/crowdpose_cocov2.pt'
         self.crowd_pose_img_dir =   '/home/wj/ai/mldata1/crowd_pose/images'
-        self.aic_anno_path = '/home/wj/ai/mldata/aic/aic_coco.pt'
+        self.aic_anno_path = '/home/wj/ai/mldata/aic/aic_cocov2.pt'
         self.aic_img_dir =   '/home/wj/ai/mldata/aic'
 
         self.nms_thre = cfg.TEST.NMS_THRE
@@ -206,7 +206,8 @@ class COCOMPIIDataset(JointsDataset):
         with open(self.lpset_anno_path,"rb") as f:
             datas = pickle.load(f)
             for data in datas:
-                tmp_db = self._load_mpii_keypoint_annotation_kernal(data,img_dir=self.lpset_img_dir)
+                tmp_db = self._load_mpii_keypoint_annotation_kernal(data,img_dir=self.lpset_img_dir,
+                use_head_kps=False)
                 gt_db.extend(tmp_db)
         
         print(f"Total load {len(gt_db)} lpset data.")
@@ -233,7 +234,8 @@ class COCOMPIIDataset(JointsDataset):
             with open(file,"rb") as f:
                 datas = pickle.load(f)
                 for data in datas:
-                    tmp_db = self._load_penn_action_keypoint_annotation_kernal(data,img_dir=self.penn_img_dir)
+                    tmp_db = self._load_penn_action_keypoint_annotation_kernal(data,img_dir=self.penn_img_dir,
+                    use_head_kps=False)
                     gt_db.extend(tmp_db)
         
         print(f"Total load {len(gt_db)} penn action data.")
@@ -315,7 +317,7 @@ class COCOMPIIDataset(JointsDataset):
 
         return rec
 
-    def _load_mpii_keypoint_annotation_kernal(self, data,img_dir):
+    def _load_mpii_keypoint_annotation_kernal(self, data,img_dir,use_head_kps=True):
         """
         coco ann: [u'segmentation', u'area', u'iscrowd', u'image_id', u'bbox', u'category_id', u'id']
         iscrowd:
@@ -339,11 +341,15 @@ class COCOMPIIDataset(JointsDataset):
             joints_3d = kps
             joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
             for ipt in range(self.num_joints):
-                t_vis = kps[ipt,2]
-                if t_vis<0.99 and ipt<5:
-                    t_vis = t_vis*0.5
-                if t_vis > 1:
-                    t_vis = 1
+                if use_head_kps:
+                    t_vis = kps[ipt,2]
+                    if t_vis<0.99 and ipt<5:
+                        t_vis = t_vis*0.5
+                    if t_vis > 1:
+                        t_vis = 1
+                else:
+                    t_vis = 0.0
+
                 joints_3d[ipt,2] = t_vis
                 joints_3d_vis[ipt, 0] = t_vis
                 joints_3d_vis[ipt, 1] = t_vis
@@ -374,7 +380,7 @@ class COCOMPIIDataset(JointsDataset):
 
         return rec
 
-    def _load_penn_action_keypoint_annotation_kernal(self, data,img_dir):
+    def _load_penn_action_keypoint_annotation_kernal(self, data,img_dir,use_head_kps=True):
         """
         coco ann: [u'segmentation', u'area', u'iscrowd', u'image_id', u'bbox', u'category_id', u'id']
         iscrowd:
@@ -398,11 +404,14 @@ class COCOMPIIDataset(JointsDataset):
             joints_3d = kps
             joints_3d_vis = np.zeros((self.num_joints, 3), dtype=np.float)
             for ipt in range(self.num_joints):
-                t_vis = kps[ipt,2]
-                if t_vis<0.99 and ipt<5:
-                    t_vis = t_vis*0.5
-                if t_vis > 1:
-                    t_vis = 1
+                if use_head_kps:
+                    t_vis = kps[ipt,2]
+                    if t_vis<0.99 and ipt<5:
+                        t_vis = t_vis*0.5
+                    if t_vis > 1:
+                        t_vis = 1
+                else:
+                    t_vis = 0.0
                 joints_3d[ipt,2] = t_vis
                 joints_3d_vis[ipt, 0] = t_vis
                 joints_3d_vis[ipt, 1] = t_vis

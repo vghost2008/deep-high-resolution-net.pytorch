@@ -426,7 +426,7 @@ class PoseHighResolutionNet(nn.Module):
 
     def forward(self, x):
         if self.add_preprocess:
-            #input [B,H,W,3]
+            #input [B,3,H,W]
             print(f"---------------------------------------------------------------")
             print(f"Add preprocess.")
             print(f"---------------------------------------------------------------")

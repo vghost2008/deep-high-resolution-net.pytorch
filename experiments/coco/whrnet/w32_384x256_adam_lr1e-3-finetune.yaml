@@ -29,8 +29,8 @@ MODEL:
   PRETRAINED: 'boeweights/w32_256x192_790.pth'
   TARGET_TYPE: gaussian
   IMAGE_SIZE:
-  - 192
-  - 256
+  - 288
+  - 384
   HEATMAP_SIZE:
   - 48
   - 64
@@ -91,16 +91,16 @@ MODEL:
 LOSS:
   USE_TARGET_WEIGHT: true
 TRAIN:
-  BATCH_SIZE_PER_GPU: 48
+  BATCH_SIZE_PER_GPU: 96
   SHUFFLE: true
   BEGIN_EPOCH: 0
-  END_EPOCH: 210
+  END_EPOCH: 100
   OPTIMIZER: adam
   LR: 0.001
   LR_FACTOR: 0.1
   LR_STEP:
-  - 170
-  - 200
+  - 50
+  - 70
   WD: 0.0001
   GAMMA1: 0.99
   GAMMA2: 0.0

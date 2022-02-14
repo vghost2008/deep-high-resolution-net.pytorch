@@ -7,6 +7,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from einops import rearrange
 
 import os
 import logging
@@ -19,6 +20,8 @@ from wtorch.utils import *
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
 
+def get_activation_fn(*args,**kwargs):
+    return nn.GELU()
 
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
@@ -271,6 +274,31 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
+class FCBlock(nn.Module):
+    def __init__(self,channels,width,height):
+        super().__init__()
+        channels1 = width*height
+        self.fc0 = nn.Linear(channels1,channels1,bias=False)
+        self.norm0 = nn.LayerNorm(channels1)
+        self.fc1 = nn.Linear(channels,channels,bias=False)
+        self.norm1 = nn.LayerNorm(channels)
+        self.relu = get_activation_fn()
+    
+    def forward(self,x):
+        residual = x
+        shape = x.shape
+        #print("shape:",shape)
+        x = rearrange(x,'b c h w -> b c (h w)')
+        x = self.fc0(x)
+        x = self.norm0(x)
+        x = rearrange(x,'b c s -> b s c')
+        x = self.fc1(x)
+        x = self.norm1(x)
+        x = rearrange(x,'b s c -> b c s')
+        x = torch.reshape(x,shape)
+        x = x+residual
+        x = self.relu(x)
+        return x
 
 class PoseHighResolutionNet(nn.Module):
 
@@ -280,7 +308,7 @@ class PoseHighResolutionNet(nn.Module):
         super(PoseHighResolutionNet, self).__init__()
 
         # stem net
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=3, padding=0,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1,
@@ -369,6 +397,10 @@ class PoseHighResolutionNet(nn.Module):
                             nn.ReLU(inplace=True)
                         )
                     )
+                w = 48//(2**i)
+                h = 64//(2**i)
+                fc_block = FCBlock(outchannels,w,h)
+                conv3x3s.append(fc_block)
                 transition_layers.append(nn.Sequential(*conv3x3s))
 
         return nn.ModuleList(transition_layers)
@@ -426,7 +458,7 @@ class PoseHighResolutionNet(nn.Module):
 
     def forward(self, x):
         if self.add_preprocess:
-            #input [B,H,W,3]
+            #input [B,3,H,W]
             print(f"---------------------------------------------------------------")
             print(f"Add preprocess.")
             print(f"---------------------------------------------------------------")

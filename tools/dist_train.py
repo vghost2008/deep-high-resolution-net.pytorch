@@ -190,11 +190,10 @@ def main():
         logger.info("=> loaded checkpoint '{}' (epoch {})".format(
             checkpoint_file, checkpoint['epoch']))
     else:
-        ckpt_path = "weights/pose_hrnet_w48_384x288.pth"
         ckpt_path = cfg.MODEL.PRETRAINED
         if osp.exists(ckpt_path):
             print(f"Load {ckpt_path}.")
-            model.module.load_state_dict(torch.load(ckpt_path), strict=True)
+            model.module.load_state_dict(torch.load(ckpt_path), strict=False)
             
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(

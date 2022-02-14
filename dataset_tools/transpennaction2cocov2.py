@@ -21,6 +21,7 @@ if __name__ == "__main__":
     trans_model = Trans2COCO()
     coco_model = KPDetection()
 
+    print(f"Save dir ",save_dir)
     datas = read_penn_action_data(dir_path)
     if len(sys.argv)==3:
         bidx = int(sys.argv[2])
@@ -38,7 +39,7 @@ if __name__ == "__main__":
         sys.stdout.write(f"\r{i}/{len(datas)}")
         file,kps,bboxes = data
         bf_name = wmlu.base_name(file)
-        '''coco_pt_path = f"/home/wj/ai/mldata1/penn_action/Penn_Action/coco_labels/{bf_name}.pt"
+        '''coco_pt_path = f"/home/wj/ai/mldata1/penn_action/Penn_Action/coco_labels/{bf_name}.v2pt"
         if osp.exists(coco_pt_path):
             continue'''
         new_coco_data = []
@@ -46,6 +47,7 @@ if __name__ == "__main__":
         for i,kp,bbox in zip(count(),kps,bboxes):
             img_name = f"{bf_name}/{i+1:06d}.jpg"
             file_path = osp.join(img_dir_path,img_name)
+            head_bbox = bbox
             vis = kp[...,-1]
             if np.sum(vis)<0.5:
                 print(f"Skip {img_name}\n\n")
@@ -60,8 +62,10 @@ if __name__ == "__main__":
             if do_vis:
                 t_bboxes = odb.npchangexyorder(t_bboxes)
                 img = odv.draw_bboxes(img,bboxes=t_bboxes,is_relative_coordinate=False)
+                t_bboxes = odb.npchangexyorder([head_bbox])
+                img = odv.draw_bboxes(img,bboxes=t_bboxes,is_relative_coordinate=False)
                 img = odv.draw_keypoints(img,kps,no_line=False,joints_pair=JOINTS_PAIR,left_node=left_node)
-                img = odv.draw_keypoints(img,coco_kps,no_line=True)
+                #img = odv.draw_keypoints(img,coco_kps,no_line=True)
                 save_path = osp.join(save_dir,img_name)
                 wmli.imwrite(save_path,img)
             new_coco_data.append([img_name,org_bboxes,kps])
