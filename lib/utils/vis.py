@@ -36,7 +36,9 @@ def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
     width = int(batch_image.size(3) + padding)
     k = 0
     for y in range(ymaps):
+        yoffset = y*height+padding
         for x in range(xmaps):
+            xoffset = x*width+padding
             if k >= nmaps:
                 break
             joints = batch_joints[k]
@@ -45,8 +47,8 @@ def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
             for i,joint, joint_vis in zip(count(),joints, joints_vis):
                 if joint[0]<0 or joint[0]>width or joint[1]<0 or joint[1]>height:
                     continue
-                joint_0 = x * width + padding + joint[0]
-                joint_1 = y * height + padding + joint[1]
+                joint_0 = xoffset + joint[0]
+                joint_1 = yoffset + joint[1]
                 if i<5:
                     color = (0,0,255)
                 elif i%2==1:
@@ -57,6 +59,8 @@ def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
                     cv2.circle(ndarr, (int(joint_0), int(joint_1)), 2, color, 2)
                     #cv2.putText(ndarr, f"{k}_{i}", (int(joint_0), int(joint_1)), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 1)
             k = k + 1
+            cv2.putText(ndarr, f"{k}", (int(xoffset), int(yoffset)), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0,255,0), 1)
+
     cv2.imwrite(file_name, ndarr[...,::-1])
 
 

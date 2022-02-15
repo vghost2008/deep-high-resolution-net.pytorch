@@ -222,7 +222,7 @@ class COCOMPIIDataset(JointsDataset):
                 gt_db.extend(tmp_db)
         
         print(f"Total load {len(gt_db)} aic data.")
-        gt_db = tdt.make_data_unit(gt_db,total_nr=100000)
+        gt_db = tdt.make_data_unit(gt_db,total_nr=120000)
         print(f"Total make {len(gt_db)} aic data unit.")
         return gt_db
 
@@ -348,7 +348,10 @@ class COCOMPIIDataset(JointsDataset):
                     if t_vis > 1:
                         t_vis = 1
                 else:
-                    t_vis = 0.0
+                    if ipt<5:
+                        t_vis = 0.0
+                    else:
+                        t_vis = kps[ipt,2]
 
                 joints_3d[ipt,2] = t_vis
                 joints_3d_vis[ipt, 0] = t_vis
@@ -411,7 +414,10 @@ class COCOMPIIDataset(JointsDataset):
                     if t_vis > 1:
                         t_vis = 1
                 else:
-                    t_vis = 0.0
+                    if ipt<5:
+                        t_vis = 0.0
+                    else:
+                        t_vis = kps[ipt,2]
                 joints_3d[ipt,2] = t_vis
                 joints_3d_vis[ipt, 0] = t_vis
                 joints_3d_vis[ipt, 1] = t_vis

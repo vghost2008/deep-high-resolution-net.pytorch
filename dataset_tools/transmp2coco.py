@@ -83,6 +83,3 @@ if __name__ == "__main__":
 
         wmli.imwrite(save_path,img)'''
 
-
-
-    print(mpii_data)

@@ -58,7 +58,6 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
         # measure data loading time
         data_time.update(time.time() - end)
 
-
         # compute output
         outputs = model(input)
 
@@ -103,6 +102,7 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
                       data_time=data_time, loss=losses, acc=acc)
             logger.info(msg)
 
+        if i%config.SUMMARY_FREQ == 0:
             writer = writer_dict['writer']
             global_steps = writer_dict['train_global_steps']
             writer.add_scalar('train_loss', losses.val, global_steps)

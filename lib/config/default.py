@@ -22,6 +22,7 @@ _C.DATA_DIR = ''
 _C.GPUS = (0,)
 _C.WORKERS = 4
 _C.PRINT_FREQ = 20
+_C.SUMMARY_FREQ = 500
 _C.AUTO_RESUME = False
 _C.PIN_MEMORY = True
 _C.RANK = 0
@@ -125,6 +126,7 @@ _C.DEBUG.SAVE_HEATMAPS_PRED = False
 
 def update_config(cfg, args):
     cfg.defrost()
+    print(f"Merge {args.cfg}.")
     cfg.merge_from_file(args.cfg)
     cfg.merge_from_list(args.opts)
 
