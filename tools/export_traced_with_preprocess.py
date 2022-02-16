@@ -9,6 +9,8 @@ import torch
 from config import cfg
 from config import update_config
 
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+
 
 from torch import nn
 
@@ -34,8 +36,13 @@ config21 = {
     'ckpt':"boeweights/w32_256x192_790.pth",
     'input_shape':[1, 3,256, 192],
     }
+config3 = {
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-finetune.yaml',
+    'ckpt':"",
+    'input_shape':[1, 3,384, 288],
+    }
 
-export_config = config11
+export_config = config3
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
@@ -77,13 +84,17 @@ def main():
     args = parse_args()
     update_config(cfg, args)
 
-    pose_model = eval('models.'+"pose_hrnet"+'.get_pose_net')(
+    pose_model = eval('models.'+cfg.MODEL.NAME+'.get_pose_net')(
         cfg, is_train=False
     )
     pose_model.to(device)
-    state_dict = torch.load(export_config['ckpt'])
-    print(f"Load {export_config['ckpt']}")
-    pose_model.load_state_dict(state_dict, strict=False)
+    ckpt = export_config['ckpt']
+    if ckpt != "" and os.path.exists(ckpt):
+        state_dict = torch.load(export_config['ckpt'])
+        print(f"Load {export_config['ckpt']}")
+        pose_model.load_state_dict(state_dict, strict=False)
+    else:
+        print(f"Find {ckpt} faild.")
     pose_model.eval()
 
     logger.info("loading checkpoint done.")

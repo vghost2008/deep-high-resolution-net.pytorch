@@ -100,7 +100,8 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
                       epoch, i, len(train_loader), batch_time=batch_time,
                       speed=input.size(0)/batch_time.val,
                       data_time=data_time, loss=losses, acc=acc)
-            logger.info(msg)
+            #logger.info(msg)
+            print(msg)
 
         if i%config.SUMMARY_FREQ == 0:
             writer = writer_dict['writer']

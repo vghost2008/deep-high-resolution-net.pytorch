@@ -29,7 +29,7 @@ config3 = {
     'ckpt':"",
     'input_shape':[1, 3,384, 288],
     }
-export_config = config2
+export_config = config3
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
     # general
