@@ -59,7 +59,7 @@ def save_batch_image_with_joints(batch_image, batch_joints, batch_joints_vis,
                     cv2.circle(ndarr, (int(joint_0), int(joint_1)), 2, color, 2)
                     #cv2.putText(ndarr, f"{k}_{i}", (int(joint_0), int(joint_1)), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 1)
             k = k + 1
-            cv2.putText(ndarr, f"{k}", (int(xoffset), int(yoffset)), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0,255,0), 1)
+            cv2.putText(ndarr, f"{k}", (int(xoffset), int(yoffset)+20), cv2.FONT_HERSHEY_DUPLEX, 1.0, (0,255,0), 1)
 
     cv2.imwrite(file_name, ndarr[...,::-1])
 

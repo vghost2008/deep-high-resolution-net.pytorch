@@ -101,6 +101,7 @@ class KPDetection:
         self.init_model()
         self.person_det = PersonDetection()
         self.device = torch.device("cuda:0")
+        self.person_bboxes = None
 
     def init_model(self):
         onnx_path = osp.join(curdir_path,"keypoints.torch")
@@ -129,7 +130,7 @@ class KPDetection:
                 cur_img,bbox = KPDetection.resize_img(cur_img,bbox,size)
             else:
                 cur_img = np.zeros([size[1],size[0],3],dtype=np.float32)
-            cv2.imwrite(f"{i}.jpg",cur_img[...,::-1])
+            #cv2.imwrite(f"{i}.jpg",cur_img[...,::-1])
             res.append(cur_img)
             res_bboxes.append(bbox)
         return res,np.array(res_bboxes,dtype=np.float32)
@@ -304,4 +305,5 @@ class KPDetection:
             ans: [N,17,3] (x,y,score,...)
         '''
         bboxes = self.get_person_bboxes(img,return_ext_info=False)
+        self.person_bboxes = np.array(bboxes)
         return self.get_kps_by_bboxes(img,bboxes)

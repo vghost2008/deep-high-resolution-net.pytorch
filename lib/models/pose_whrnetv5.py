@@ -17,6 +17,7 @@ import torch
 import torch.nn as nn
 from wtorch.utils import *
 import torch.nn.init as init
+from wtorch.ocr_block import OCRBlock
 
 
 BN_MOMENTUM = 0.1
@@ -276,32 +277,6 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
-class FCBlock(nn.Module):
-    def __init__(self,channels,width,height):
-        super().__init__()
-        channels1 = width*height
-        self.fc0 = nn.Linear(channels1,channels1,bias=False)
-        self.norm0 = nn.LayerNorm(channels1)
-        self.fc1 = nn.Linear(channels,channels,bias=False)
-        self.norm1 = nn.LayerNorm(channels)
-        self.relu = get_activation_fn()
-    
-    def forward(self,x):
-        residual = x
-        shape = x.shape
-        #print("shape:",shape)
-        x = rearrange(x,'b c h w -> b c (h w)')
-        x = self.fc0(x)
-        x = self.norm0(x)
-        x = rearrange(x,'b c s -> b s c')
-        x = self.fc1(x)
-        x = self.norm1(x)
-        x = rearrange(x,'b s c -> b c s')
-        x = torch.reshape(x,shape)
-        x = x+residual
-        x = self.relu(x)
-        return x
-
 def BNReLU(ch):
     return nn.Sequential(
         Norm2d(ch),
@@ -315,77 +290,10 @@ def Norm2d(in_channels, **kwargs):
     normalization_layer = layer(in_channels, **kwargs)
     return normalization_layer
 
-class AttentionBlock(nn.Module):
-    def __init__(self, channels, width, height):
-        super().__init__()
-        self.in_channels = channels
-        self.key_channels = channels
-        self.channels1 = width*height
-        self.f_pixel = nn.Sequential(
-            nn.Conv2d(in_channels=self.in_channels, out_channels=self.key_channels,
-                      kernel_size=1, stride=1, padding=0, bias=False),
-            BNReLU(self.key_channels),
-            nn.Conv2d(in_channels=self.key_channels, out_channels=self.key_channels,
-                      kernel_size=1, stride=1, padding=0, bias=False),
-            BNReLU(self.key_channels),
-        )
-        self.f_object = nn.Sequential(
-            nn.Conv2d(in_channels=self.in_channels, out_channels=self.key_channels,
-                      kernel_size=1, stride=1, padding=0, bias=False),
-            BNReLU(self.key_channels),
-            nn.Conv2d(in_channels=self.key_channels, out_channels=self.key_channels,
-                      kernel_size=1, stride=1, padding=0, bias=False),
-            BNReLU(self.key_channels),
-        )
-        self.f_down = nn.Sequential(
-            nn.Conv2d(in_channels=self.in_channels, out_channels=self.key_channels,
-                      kernel_size=1, stride=1, padding=0, bias=False),
-            BNReLU(self.key_channels),
-        )
-        self.f_up = nn.Sequential(
-            nn.Conv2d(in_channels=self.key_channels, out_channels=self.in_channels,
-                      kernel_size=1, stride=1, padding=0, bias=False),
-            BNReLU(self.in_channels),
-        )
-        self.pos_embed = nn.Parameter(torch.zeros(1, self.in_channels, width*height))
-
-        self.init_weights()
-
-    def init_weights(self):
-        init.trunc_normal_(self.pos_embed,0,0.2)
-
-
-
-    def forward(self, x):
-        batch_size, h, w = x.size(0), x.size(2), x.size(3)
-        proxy = x
-
-        query = self.f_pixel(x).view(batch_size, self.key_channels, -1)
-        query = query+self.pos_embed
-        query = query.permute(0, 2, 1)
-
-        key = self.f_object(proxy).view(batch_size, self.key_channels, -1)
-        key = key+self.pos_embed
-
-        value = self.f_down(proxy).view(batch_size, self.key_channels, -1)
-        value = value.permute(0, 2, 1)
-
-        sim_map = torch.matmul(query, key)
-        sim_map = (self.key_channels**-.5) * sim_map
-        sim_map = F.softmax(sim_map, dim=-1)
-
-        # add bg context ...
-        context = torch.matmul(sim_map, value)
-        context = context.permute(0, 2, 1).contiguous()
-        context = context.view(batch_size, self.key_channels, *x.size()[2:])
-        context = self.f_up(context)
-
-        return context+x
-
-
 class PoseHighResolutionNet(nn.Module):
 
     def __init__(self, cfg, **kwargs):
+        print(f"use whrentv4")
         self.inplanes = 64
         extra = cfg['MODEL']['EXTRA']
         super(PoseHighResolutionNet, self).__init__()
@@ -441,26 +349,17 @@ class PoseHighResolutionNet(nn.Module):
             pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(
             self.stage4_cfg, num_channels, multi_scale_output=True)
-        '''self.conv4s = nn.ModuleList([
-                nn.Sequential(nn.Conv2d(64,32,1),AttentionBlock(32,24,32)),
-                nn.Sequential(nn.Conv2d(128,32,1),AttentionBlock(32,12,16)),
-                nn.Sequential(nn.Conv2d(256,32,1),AttentionBlock(32,6,8)),
-                ])'''
         self.conv4s = nn.ModuleList([
-                nn.Conv2d(64,32,1),
-                nn.Conv2d(128,32,1),
-                nn.Conv2d(256,32,1),
+                nn.Conv2d(pre_stage_channels[1],32,1),
+                nn.Conv2d(pre_stage_channels[2],32,1),
+                nn.Conv2d(pre_stage_channels[3],32,1),
                 ])
-        last_channels = 128
-        self.final_layer = nn.Sequential(
-            nn.Conv2d(
-            in_channels=last_channels,
-            out_channels=cfg['MODEL']['NUM_JOINTS'],
-            kernel_size=extra['FINAL_CONV_KERNEL'],
-            stride=1,
-            padding=1 if extra['FINAL_CONV_KERNEL'] == 3 else 0
-        ))
-
+        last_channels = 96+pre_stage_channels[0]
+        self.ocr_block = OCRBlock(in_channels=last_channels,
+            num_classes=cfg['MODEL']['NUM_JOINTS'],
+            key_channels=128,
+            mid_channel=128,
+            )
         self.pretrained_layers = extra['PRETRAINED_LAYERS']
         self.add_preprocess = False
 
@@ -501,14 +400,6 @@ class PoseHighResolutionNet(nn.Module):
                             nn.ReLU(inplace=True)
                         )
                     )
-                w = 48//(2**i)
-                h = 64//(2**i)
-                #fc_block = FCBlock(outchannels,w,h)
-                #conv3x3s.append(fc_block)
-
-                atten_block = AttentionBlock(outchannels,w,h)
-                conv3x3s.append(atten_block)
-
                 transition_layers.append(nn.Sequential(*conv3x3s))
 
         return nn.ModuleList(transition_layers)
@@ -618,9 +509,13 @@ class PoseHighResolutionNet(nn.Module):
                            mode='bilinear', align_corners=False)
 
         x = torch.cat([x[0], x1, x2, x3], 1)
-        x = self.final_layer(x)
-
-        return x
+        cls_out, aux_out, ocr_feats = self.ocr_block(x)
+        if not self.training:
+            return cls_out
+        else:
+            return {'cls_out':cls_out,
+            'aux_out':aux_out,
+            'ocr_feats':ocr_feats}
 
     def init_weights(self, pretrained=''):
         logger.info('=> init weights from normal distribution')

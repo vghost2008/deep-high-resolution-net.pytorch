@@ -29,7 +29,7 @@ import _init_paths
 from config import cfg
 from config import update_config
 from core.loss import JointsMSELoss
-from core.function import train
+from core.function import trainv2
 from core.function import validate
 from utils.utils import get_optimizer
 from utils.utils import save_checkpoint
@@ -53,7 +53,7 @@ def parse_args():
                         help="Modify config options using the command-line",
                         default=None,
                         nargs=argparse.REMAINDER)
-    parser.add_argument("--gpus", nargs='+',type=int, help="gpus for training.")
+    parser.add_argument("--gpus", nargs='+',type=int, default=[0],help="gpus for training.")
     # philly
     parser.add_argument('--modelDir',
                         help='model directory',
@@ -197,18 +197,17 @@ def main():
             forgiving_state_restore(model.module,torch.load(ckpt_path),True)
             
 
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer, cfg.TRAIN.LR_STEP, cfg.TRAIN.LR_FACTOR,
-        last_epoch=last_epoch
+    lr_scheduler = wtt.WarmupCosLR(
+        optimizer, 
+        total_iters=(cfg.TRAIN.END_EPOCH-begin_epoch-1)*len(train_loader)
     )
     print(f"PID {os.getpid()}")
 
 
     for epoch in range(begin_epoch, cfg.TRAIN.END_EPOCH):
-        lr_scheduler.step()
 
         # train for one epoch
-        train(cfg, train_loader, model, criterion, optimizer, epoch,
+        trainv2(cfg, train_loader, model, criterion, optimizer, lr_scheduler,epoch,
               final_output_dir, tb_log_dir, writer_dict)
 
 
@@ -248,5 +247,6 @@ if __name__ == '__main__':
     main()
 
 '''
-nohup python tools/dist_train.py --cfg experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v5-finetune.yaml --gpus 2 3 > e5.log &
+nohup python tools/dist_trainv2.py --cfg experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v5-finetune.yaml --gpus 2 3 > e5.log &
+nohup python tools/dist_trainv2.py --cfg experiments/coco/whrnet/w48_576x384_adam_lr1e-3-v5c-finetune.yaml --gpus 2 3 > e54c.log &
 '''

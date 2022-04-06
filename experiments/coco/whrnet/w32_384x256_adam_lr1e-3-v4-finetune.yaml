@@ -25,9 +25,10 @@ DATASET:
   TRAIN_SET: 'train2017'
 MODEL:
   INIT_WEIGHTS: true
-  NAME: pose_whrnet
+  NAME: pose_whrnetv4
   NUM_JOINTS: 17
-  PRETRAINED: 'boeweights/w32_256x192_790.pth'
+  #PRETRAINED: 'boeweights/w32_256x192_790.pth'
+  PRETRAINED: 'boeweights/keypoints797_ww32_v3_384x288.pth'
   TARGET_TYPE: gaussian
   IMAGE_SIZE:
   - 288
@@ -37,7 +38,6 @@ MODEL:
   - 64
   SIGMA: 2
   EXTRA:
-    FIRST_CONV_NR: 2
     PRETRAINED_LAYERS:
     - 'conv1'
     - 'bn1'
@@ -51,6 +51,7 @@ MODEL:
     - 'transition3'
     - 'stage4'
     FINAL_CONV_KERNEL: 1
+    FIRST_CONV_NR: 1
     STAGE2:
       NUM_MODULES: 1
       NUM_BRANCHES: 2
@@ -93,10 +94,10 @@ MODEL:
 LOSS:
   USE_TARGET_WEIGHT: true
 TRAIN:
-  BATCH_SIZE_PER_GPU: 64
+  BATCH_SIZE_PER_GPU: 96
   SHUFFLE: true
   BEGIN_EPOCH: 0
-  END_EPOCH: 100
+  END_EPOCH: 150
   OPTIMIZER: adam
   LR: 0.001
   LR_FACTOR: 0.1

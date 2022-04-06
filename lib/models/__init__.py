@@ -15,3 +15,6 @@ from __future__ import print_function
 import models.pose_resnet
 import models.pose_hrnet
 import models.pose_whrnet
+import models.pose_whrnet_trans
+import models.pose_whrnetv4
+import models.pose_whrnetv5

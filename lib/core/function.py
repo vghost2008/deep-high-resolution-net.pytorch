@@ -63,11 +63,21 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
 
         target = target.cuda(non_blocking=True)
         target_weight = target_weight.cuda(non_blocking=True)
+    
+        main_loss = None
+        aux_loss = None
 
         if isinstance(outputs, list):
             loss = criterion(outputs[0], target, target_weight)
             for output in outputs[1:]:
                 loss += criterion(output, target, target_weight)
+        elif isinstance(outputs,dict):
+            cls_out = outputs['cls_out']
+            aux_out = outputs['aux_out']
+            main_loss = criterion(cls_out, target, target_weight)
+            aux_loss = criterion(aux_out, target, target_weight)
+            loss = main_loss+aux_loss*0.4
+            output = cls_out
         else:
             output = outputs
             loss = criterion(output, target, target_weight)
@@ -108,10 +118,16 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
             global_steps = writer_dict['train_global_steps']
             writer.add_scalar('train_loss', losses.val, global_steps)
             writer.add_scalar('train_acc', acc.val, global_steps)
+            if main_loss is not None:
+                writer.add_scalar('main_loss',main_loss,global_steps)
+            if aux_loss is not None:
+                writer.add_scalar('aux_loss',aux_loss,global_steps)
+            if main_loss is not None and aux_loss is not None:
+                writer.add_scalar('aux_sub_main_loss',aux_loss-main_loss,global_steps)
             writer_dict['train_global_steps'] = global_steps + 1
 
             prefix = '{}_{}'.format(os.path.join(output_dir, 'train'), global_steps)
-            save_debug_images(config, input, meta, target, pred*4, output,
+            save_debug_images(config, input, meta, target, pred*scale_factor, output,
                               prefix)
             log_img = wtu.unnormalize(input[:4],mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             writer.add_images("input/images",log_img,global_steps)
@@ -130,6 +146,110 @@ def train(config, train_loader, model, criterion, optimizer, epoch,
             log_all_variable(writer,model,global_steps)
             log_optimizer(writer,optimizer,global_steps)
 
+def trainv2(config, train_loader, model, criterion, optimizer, lr_scheduler,epoch,
+          output_dir, tb_log_dir, writer_dict):
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+    acc = AverageMeter()
+
+    # switch to train mode
+    model.train()
+
+    end = time.time()
+    scale_factor = config.MODEL.IMAGE_SIZE[0]//config.MODEL.HEATMAP_SIZE[0]
+    for i, (input, target, target_weight, meta) in enumerate(train_loader):
+        # measure data loading time
+        data_time.update(time.time() - end)
+
+        # compute output
+        outputs = model(input)
+
+        target = target.cuda(non_blocking=True)
+        target_weight = target_weight.cuda(non_blocking=True)
+    
+        main_loss = None
+        aux_loss = None
+
+        if isinstance(outputs, list):
+            loss = criterion(outputs[0], target, target_weight)
+            for output in outputs[1:]:
+                loss += criterion(output, target, target_weight)
+        elif isinstance(outputs,dict):
+            cls_out = outputs['cls_out']
+            aux_out = outputs['aux_out']
+            main_loss = criterion(cls_out, target, target_weight)
+            aux_loss = criterion(aux_out, target, target_weight)
+            loss = main_loss+aux_loss*0.4
+            output = cls_out
+        else:
+            output = outputs
+            loss = criterion(output, target, target_weight)
+
+        # loss = criterion(output, target, target_weight)
+
+        # compute gradient and do update step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # measure accuracy and record loss
+        losses.update(loss.item(), input.size(0))
+
+        _, avg_acc, cnt, pred = accuracy(output.detach().cpu().numpy(),
+                                         target.detach().cpu().numpy())
+        acc.update(avg_acc, cnt)
+        lr_scheduler.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if i % config.PRINT_FREQ == 0:
+            msg = 'Epoch: [{0}][{1}/{2}]\t' \
+                  'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
+                  'Speed {speed:.1f} samples/s\t' \
+                  'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
+                  'Loss {loss.val:.5f} ({loss.avg:.5f})\t' \
+                  'Accuracy {acc.val:.3f} ({acc.avg:.3f})'.format(
+                      epoch, i, len(train_loader), batch_time=batch_time,
+                      speed=input.size(0)/batch_time.val,
+                      data_time=data_time, loss=losses, acc=acc)
+            #logger.info(msg)
+            print(msg)
+
+        if i%config.SUMMARY_FREQ == 0:
+            writer = writer_dict['writer']
+            global_steps = writer_dict['train_global_steps']
+            writer.add_scalar('train_loss', losses.val, global_steps)
+            writer.add_scalar('train_acc', acc.val, global_steps)
+            if main_loss is not None:
+                writer.add_scalar('main_loss',main_loss,global_steps)
+            if aux_loss is not None:
+                writer.add_scalar('aux_loss',aux_loss,global_steps)
+            if main_loss is not None and aux_loss is not None:
+                writer.add_scalar('aux_sub_main_loss',aux_loss-main_loss,global_steps)
+            writer_dict['train_global_steps'] = global_steps + 1
+
+            prefix = '{}_{}'.format(os.path.join(output_dir, 'train'), global_steps)
+            save_debug_images(config, input, meta, target, pred*scale_factor, output,
+                              prefix)
+            log_img = wtu.unnormalize(input[:4],mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            writer.add_images("input/images",log_img,global_steps)
+            log_basic_info(writer,"input/images",input,global_steps)
+            log_target = make_heat_map_img(target.cpu()[:4])
+            writer.add_images("target_heat_map",log_target,global_steps)
+            log_target =  nn.functional.interpolate(log_target,scale_factor=scale_factor)
+            log_img2 = wtu.merge_imgs_heatmap(log_img,log_target,channel=1,min=0.0,max=1.0)
+            writer.add_images("input/merged",log_img2,global_steps)
+            log_output =  nn.functional.interpolate(output[:4].detach().cpu(),scale_factor=scale_factor)
+            log_output = make_heat_map_img(log_output)
+            log_img3 = wtu.merge_imgs_heatmap(log_img,log_output,channel=1,min=0.0,max=1.0)
+            writer.add_images("input/merged_output",log_img3,global_steps)
+            log_weight = make_weight_img(target_weight[:4])
+            writer.add_images("input/weight",log_weight,global_steps)
+            log_all_variable(writer,model,global_steps)
+            log_optimizer(writer,optimizer,global_steps)
 def validate(config, val_loader, val_dataset, model, criterion, output_dir,
              tb_log_dir, writer_dict=None):
     batch_time = AverageMeter()

@@ -77,13 +77,17 @@ def npnormalize(x,mean,std):
     return x
 
 class KPDetection:
+    SIZE = (288,384)
+    UPSCALE = 6
+    #SIZE = (192,256)
     def __init__(self) -> None:
         self.init_model()
         self.person_det = PersonDetection()
         self.idx = 0
 
     def init_model(self):
-        onnx_path = osp.join(curdir_path,"keypoints.onnx")
+        #onnx_path = osp.join(curdir_path,"keypoints.onnx")
+        onnx_path = osp.join(curdir_path,"keypoints797_v4_384x288.onnx")
         self.model = ort.InferenceSession(onnx_path)
         self.input_name = self.model.get_inputs()[0].name
         self.output_name = self.model.get_outputs()[0].name
@@ -91,23 +95,53 @@ class KPDetection:
 
     @staticmethod
     def preprocess(img):
-        img = to_tensor(img)
-        img = npnormalize(img,mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])
+        img = np.array(img).astype(np.float32)
+        img = np.transpose(img,[2,0,1])
+        #img = to_tensor(img)
+        #img = npnormalize(img,mean=[0.485, 0.456, 0.406],
+        #                         std=[0.229, 0.224, 0.225])
         return img
-
-
+    
     @staticmethod
     def cut_and_resize(img,bboxes,size=(288,384)):
         res = []
-        for bbox in bboxes:
+        res_bboxes = []
+        for i,bbox in enumerate(bboxes):
             cur_img = img[bbox[1]:bbox[3],bbox[0]:bbox[2],:]
             if cur_img.shape[0]>1 and cur_img.shape[1]>1:
-                cur_img = cv2.resize(cur_img,size,interpolation=cv2.INTER_LINEAR)
+                #cur_img = cv2.resize(cur_img,size,interpolation=cv2.INTER_LINEAR)
+                cur_img,bbox = KPDetection.resize_img(cur_img,bbox,size)
             else:
                 cur_img = np.zeros([size[1],size[0],3],dtype=np.float32)
+            #cv2.imwrite(f"{i}.jpg",cur_img[...,::-1])
             res.append(cur_img)
-        return res
+            res_bboxes.append(bbox)
+        return res,np.array(res_bboxes,dtype=np.float32)
+    
+    @staticmethod
+    def resize_img(img,bbox,target_size,pad_color=(127,127,127)):
+        res = np.ndarray([target_size[1],target_size[0],3],dtype=np.uint8)
+        res[:,:] = np.array(pad_color,dtype=np.uint8)
+        ratio = target_size[0]/target_size[1]
+        bbox_cx = (bbox[2]+bbox[0])/2
+        bbox_cy = (bbox[3]+bbox[1])/2
+        bbox_w = (bbox[2]-bbox[0])
+        bbox_h = (bbox[3]-bbox[1])
+        if img.shape[1]>ratio*img.shape[0]:
+            nw = target_size[0]
+            nh = int(target_size[0]*img.shape[0]/img.shape[1])
+            bbox_h = bbox_w/ratio
+        else:
+            nh = target_size[1]
+            nw = int(target_size[1]*img.shape[1]/img.shape[0])
+            bbox_w = bbox_h*ratio
+    
+        img = cv2.resize(img,(nw,nh),interpolation=cv2.INTER_LINEAR)
+        xoffset = (target_size[0]-nw)//2
+        yoffset = (target_size[1]-nh)//2
+        res[yoffset:yoffset+nh,xoffset:xoffset+nw] = img
+        bbox = np.array([bbox_cx-bbox_w/2,bbox_cy-bbox_h/2,bbox_cx+bbox_w/2,bbox_cy+bbox_h/2],dtype=np.float32)
+        return res,bbox
 
     @staticmethod
     def get_offset_and_scalar(bboxes,size=(288,384)):
@@ -117,7 +151,7 @@ class KPDetection:
         cur_size = np.array(size,np.float32)
         cur_size = np.resize(cur_size,[1,2])
         scalar = bboxes_size/cur_size
-        scalar = np.expand_dims(scalar,axis=1)*4
+        scalar = np.expand_dims(scalar,axis=1)*KPDetection.UPSCALE
         return offset,scalar
 
     @staticmethod
@@ -204,7 +238,7 @@ class KPDetection:
         '''
         #print(bboxes)
         #cv2.imwrite("/home/wj/ai/mldata/0day/x1/a.jpg",img)
-        imgs = self.cut_and_resize(img,bboxes.astype(np.int32))
+        imgs,bboxes = self.cut_and_resize(img,bboxes.astype(np.int32),size=KPDetection.SIZE)
         imgs = [self.preprocess(x) for x in imgs]
         imgs = np.ascontiguousarray(np.array(imgs))
         self.idx += 1
@@ -216,7 +250,7 @@ class KPDetection:
             print(f"ERROR")
             return np.zeros([imgs.shape[0],17,3],dtype=np.float32)
         output = self.get_final_preds(output)
-        offset,scalar = self.get_offset_and_scalar(bboxes)
+        offset,scalar = self.get_offset_and_scalar(bboxes,size=KPDetection.SIZE)
         output[...,:2] = output[...,:2]*scalar+offset
         return output
 

@@ -37,7 +37,6 @@ MODEL:
   - 64
   SIGMA: 2
   EXTRA:
-    FIRST_CONV_NR: 2
     PRETRAINED_LAYERS:
     - 'conv1'
     - 'bn1'
@@ -51,6 +50,7 @@ MODEL:
     - 'transition3'
     - 'stage4'
     FINAL_CONV_KERNEL: 1
+    FIRST_CONV_NR: 1
     STAGE2:
       NUM_MODULES: 1
       NUM_BRANCHES: 2

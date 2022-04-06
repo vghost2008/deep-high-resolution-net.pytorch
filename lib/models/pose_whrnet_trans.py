@@ -12,7 +12,7 @@ from einops import rearrange
 import torch.nn.functional as F
 import os
 import logging
-
+import wtorch.nn as wnn
 import torch
 import torch.nn as nn
 from wtorch.utils import *
@@ -276,32 +276,6 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
-class FCBlock(nn.Module):
-    def __init__(self,channels,width,height):
-        super().__init__()
-        channels1 = width*height
-        self.fc0 = nn.Linear(channels1,channels1,bias=False)
-        self.norm0 = nn.LayerNorm(channels1)
-        self.fc1 = nn.Linear(channels,channels,bias=False)
-        self.norm1 = nn.LayerNorm(channels)
-        self.relu = get_activation_fn()
-    
-    def forward(self,x):
-        residual = x
-        shape = x.shape
-        #print("shape:",shape)
-        x = rearrange(x,'b c h w -> b c (h w)')
-        x = self.fc0(x)
-        x = self.norm0(x)
-        x = rearrange(x,'b c s -> b s c')
-        x = self.fc1(x)
-        x = self.norm1(x)
-        x = rearrange(x,'b s c -> b c s')
-        x = torch.reshape(x,shape)
-        x = x+residual
-        x = self.relu(x)
-        return x
-
 def BNReLU(ch):
     return nn.Sequential(
         Norm2d(ch),
@@ -316,11 +290,15 @@ def Norm2d(in_channels, **kwargs):
     return normalization_layer
 
 class AttentionBlock(nn.Module):
-    def __init__(self, channels, width, height):
+    def __init__(self, channels, width, height,add_seblock=False):
         super().__init__()
         self.in_channels = channels
         self.key_channels = channels
         self.channels1 = width*height
+        if add_seblock:
+            self.seblock = wnn.SEBlock(self.in_channels,8)
+        else:
+            self.seblock = None
         self.f_pixel = nn.Sequential(
             nn.Conv2d(in_channels=self.in_channels, out_channels=self.key_channels,
                       kernel_size=1, stride=1, padding=0, bias=False),
@@ -359,8 +337,10 @@ class AttentionBlock(nn.Module):
     def forward(self, x):
         batch_size, h, w = x.size(0), x.size(2), x.size(3)
         proxy = x
+        if self.seblock is not None:
+            proxy = self.seblock(proxy)
 
-        query = self.f_pixel(x).view(batch_size, self.key_channels, -1)
+        query = self.f_pixel(proxy).view(batch_size, self.key_channels, -1)
         query = query+self.pos_embed
         query = query.permute(0, 2, 1)
 
@@ -453,8 +433,10 @@ class PoseHighResolutionNet(nn.Module):
                 ])
         last_channels = 128
         self.final_layer = nn.Sequential(
+            nn.Conv2d(128,64,1),
+            AttentionBlock(64,48,64,add_seblock=True),
             nn.Conv2d(
-            in_channels=last_channels,
+            in_channels=64,
             out_channels=cfg['MODEL']['NUM_JOINTS'],
             kernel_size=extra['FINAL_CONV_KERNEL'],
             stride=1,
@@ -473,17 +455,32 @@ class PoseHighResolutionNet(nn.Module):
         for i in range(num_branches_cur):
             if i < num_branches_pre:
                 if num_channels_cur_layer[i] != num_channels_pre_layer[i]:
-                    transition_layers.append(
-                        nn.Sequential(
-                            nn.Conv2d(
-                                num_channels_pre_layer[i],
-                                num_channels_cur_layer[i],
-                                3, 1, 1, bias=False
-                            ),
-                            nn.BatchNorm2d(num_channels_cur_layer[i]),
-                            nn.ReLU(inplace=True)
+                    if i==0:
+                        transition_layers.append(
+                            nn.Sequential(
+                                nn.Conv2d(
+                                    num_channels_pre_layer[i],
+                                    num_channels_cur_layer[i],
+                                    3, 1, 1, bias=False
+                                ),
+                                nn.BatchNorm2d(num_channels_cur_layer[i]),
+                                nn.ReLU(inplace=True)
+                            )
                         )
-                    )
+                    else:
+                        out_channels = num_channels_cur_layer[i]
+                        transition_layers.append(
+                            nn.Sequential(
+                                nn.Conv2d(
+                                    num_channels_pre_layer[i],
+                                    num_channels_cur_layer[i],
+                                    3, 1, 1, bias=False
+                                ),
+                                nn.BatchNorm2d(num_channels_cur_layer[i]),
+                                nn.ReLU(inplace=True),
+                                wnn.SEBlock(out_channels,8 if out_channels<=64 else 16)
+                            )
+                        )
                 else:
                     transition_layers.append(None)
             else:
@@ -501,10 +498,9 @@ class PoseHighResolutionNet(nn.Module):
                             nn.ReLU(inplace=True)
                         )
                     )
+                conv3x3s.append(wnn.SEBlock(outchannels,8 if outchannels<=64 else 16))
                 w = 48//(2**i)
                 h = 64//(2**i)
-                #fc_block = FCBlock(outchannels,w,h)
-                #conv3x3s.append(fc_block)
 
                 atten_block = AttentionBlock(outchannels,w,h)
                 conv3x3s.append(atten_block)

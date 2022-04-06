@@ -12,7 +12,6 @@ from __future__ import print_function
 import argparse
 import os
 import pprint
-os.environ['CUDA_VISIBLE_DEVICES'] = "2"
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import torch
@@ -35,14 +34,15 @@ import dataset
 import models
 config_w48 = {
     'cfg':'experiments/coco/hrnet/w48_384x288_adam_lr1e-3-finetune.yaml',
-    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_hrnet/w48_384x288_adam_lr1e-3-finetune/final_state.pth',
-    'ckpt':'/home/wj/ai/work/deep-high-resolution-net.pytorch/boeweights/w48_384x288_811.pth',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_hrnet/w48_384x288_adam_lr1e-3-finetune/final_state.pth',
+    #'ckpt':'/home/wj/ai/work/deep-high-resolution-net.pytorch/boeweights/w48_384x288_811.pth',
     'gtbboxes':True,
 }
 config_w32 = {
     'cfg':'experiments/coco/hrnet/w32_256x192_adam_lr1e-3-finetune.yaml',
-    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_hrnet/w32_256x192_adam_lr1e-3-finetune/final_state.pth',
-    'ckpt':'/home/wj/ai/work/deep-high-resolution-net.pytorch/boeweights/w32_256x192_790.pth',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_hrnet/w32_256x192_adam_lr1e-3-finetune/final_state.pth',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_hrnet/w32_256x192_adam_lr1e-3-finetune/model_best.pth',
+    #'ckpt':'/home/wj/ai/work/deep-high-resolution-net.pytorch/boeweights/w32_256x192_790.pth',
     'gtbboxes':True,
 }
 config_ww32 = {
@@ -50,8 +50,53 @@ config_ww32 = {
     'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet/w32_256x192_adam_lr1e-3/final_state.pth',
     'gtbboxes':True,
 }
+config_ww32v2 = {
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-finetune.yaml',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet/w32_384x256_adam_lr1e-3-finetune/final_state.pth',
+    'gtbboxes':True,
+}
+config_ww32_384_v1 = {
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-finetune.yaml',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet/w32_384x256_adam_lr1e-3-finetune/final_state.pth',
+    'gtbboxes':True,
+}
+config_ww32_384_v2 = { #0.794
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v2-finetune.yaml',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet/w32_384x256_adam_lr1e-3-v2-finetune/final_state.pth',
+    'gtbboxes':True,
+}
+config_ww32_384_v3 = { #0.797
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v3-finetune.yaml',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet_trans/w32_384x256_adam_lr1e-3-v3-finetune/final_state.pth',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet_trans/w32_384x256_adam_lr1e-3-v3-finetune/final_state.pth',
+    'gtbboxes':True,
+}
+config_ww32_384_v4 = { #0.797
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v4-finetune.yaml',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet_trans/w32_384x256_adam_lr1e-3-v3-finetune/final_state.pth',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnetv4/w32_384x256_adam_lr1e-3-v4-finetune/final_state.pth',
+    'ckpt':'boeweights/keypoints797_v4_384x288.pth',
+    'gtbboxes':True,
+}
+config_ww32_384_v5 = { #0.804
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v5-finetune.yaml',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnet_trans/w32_384x256_adam_lr1e-3-v3-finetune/final_state.pth',
+    #'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnetv4/w32_384x256_adam_lr1e-3-v4-finetune/final_state.pth',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnetv5/w32_384x256_adam_lr1e-3-v5-finetune/final_state.pth',
+    'gtbboxes':True,
+}
+config_ww32_384_v5c = { #0.806
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v5c-finetune.yaml',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnetv5/w32_384x256_adam_lr1e-3-v5c-finetune/final_state.pth',
+    'gtbboxes':True,
+}
+config_ww48_576_v5c = {
+    'cfg':'experiments/coco/whrnet/w48_576x384_adam_lr1e-3-v5c-finetune.yaml',
+    'ckpt':'/home/wj/ai/mldata1/hrnet/weights/coco_mpii/pose_whrnetv5/w48_576x384_adam_lr1e-3-v5c-finetune/final_state.pth',
+    'gtbboxes':True,
+}
 
-test_config = config_w32
+test_config = config_ww48_576_v5c
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')

@@ -5,11 +5,11 @@ sys.path.append(osp.dirname(osp.dirname(__file__)))
 from demo_toolkit import *
 import os
 import numpy as np
-from keypoints.get_keypoints import *
+from keypoints_onnx.get_keypoints import *
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 pdir_path = osp.dirname(osp.dirname(__file__))
 
-os.environ['CUDA_VISIBLE_DEVICES'] = "2"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 class Model:
     def __init__(self):
@@ -24,13 +24,15 @@ class Model:
         return img
 
 if __name__ == "__main__":
-    vd = VideoDemo(Model(),save_path="tmp1.mp4",buffer_size=1,show_video=False,max_frame_cn=10)
+    vd = VideoDemo(Model(),save_path="tmp1.mp4",buffer_size=1,show_video=False,max_frame_cn=None)
     #video_path = "/home/wj/ai/mldata/boeoffice/test_data/test3.webm"
     print(f"DATE: 2021-11-29")
     '''video_path = "/home/wj/ai/mldata/global_traj/tennis1.mp4"
     video_path = "/home/wj/ai/mldata/pose3d/basketball2.mp4"
     video_path = "/home/wj/ai/mldata/keypoints_data/model_test_video/railway_station_scene.avi"'''
     video_path = "/home/wj/ai/mldata/keypoints_data/model_test_video/cto_staff_scene.avi"
+    video_path = "/home/wj/ai/mldata/keypoints_data/model_test_video/Fatigue-behavior_eyeclose_noglasses.avi"
+    video_path = "/home/wj/ai/mldata/keypoints_data/model_test_video/test3p.webm"
     #video_path = "/home/wj/ai/mldata/keypoints_data/model_test_video/railway_station_scene.avi"
     #video_path = None
     if len(sys.argv)>1:

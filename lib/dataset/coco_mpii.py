@@ -156,8 +156,8 @@ class COCOMPIIDataset(JointsDataset):
             gt_db.extend(self._load_crowd_pose_keypoint_annotations())
             gt_db.extend(self._load_aic_keypoint_annotations())
             '''if is_debug():
-                gt_db.extend(self._load_lpset_keypoint_annotations())
-                gt_db.extend(self._load_penn_action_keypoint_annotations())'''
+                gt_db.extend(self._load_mpii_keypoint_annotations())
+                #gt_db.extend(self._load_aic_keypoint_annotations())'''
         else:
             if self.is_train or self.use_gt_bbox:
                 # use ground truth bbox
@@ -329,6 +329,8 @@ class COCOMPIIDataset(JointsDataset):
         :return: db entry
         """
         img_name,bboxes,all_kps = data
+        #face_kp_scale = 0.5
+        face_kp_scale = 1.0
         if bboxes.shape[0]==0:
             return []
 
@@ -344,7 +346,7 @@ class COCOMPIIDataset(JointsDataset):
                 if use_head_kps:
                     t_vis = kps[ipt,2]
                     if t_vis<0.99 and ipt<5:
-                        t_vis = t_vis*0.5
+                        t_vis = t_vis*face_kp_scale
                     if t_vis > 1:
                         t_vis = 1
                 else:

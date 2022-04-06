@@ -276,32 +276,6 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
-class FCBlock(nn.Module):
-    def __init__(self,channels,width,height):
-        super().__init__()
-        channels1 = width*height
-        self.fc0 = nn.Linear(channels1,channels1,bias=False)
-        self.norm0 = nn.LayerNorm(channels1)
-        self.fc1 = nn.Linear(channels,channels,bias=False)
-        self.norm1 = nn.LayerNorm(channels)
-        self.relu = get_activation_fn()
-    
-    def forward(self,x):
-        residual = x
-        shape = x.shape
-        #print("shape:",shape)
-        x = rearrange(x,'b c h w -> b c (h w)')
-        x = self.fc0(x)
-        x = self.norm0(x)
-        x = rearrange(x,'b c s -> b s c')
-        x = self.fc1(x)
-        x = self.norm1(x)
-        x = rearrange(x,'b s c -> b c s')
-        x = torch.reshape(x,shape)
-        x = x+residual
-        x = self.relu(x)
-        return x
-
 def BNReLU(ch):
     return nn.Sequential(
         Norm2d(ch),
@@ -503,8 +477,6 @@ class PoseHighResolutionNet(nn.Module):
                     )
                 w = 48//(2**i)
                 h = 64//(2**i)
-                #fc_block = FCBlock(outchannels,w,h)
-                #conv3x3s.append(fc_block)
 
                 atten_block = AttentionBlock(outchannels,w,h)
                 conv3x3s.append(atten_block)

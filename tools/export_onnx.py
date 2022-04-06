@@ -29,7 +29,22 @@ config3 = {
     'ckpt':"",
     'input_shape':[1, 3,384, 288],
     }
-export_config = config3
+config4 = {
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v3-finetune.yaml',
+    'ckpt':"",
+    'input_shape':[1, 3,384, 288],
+    }
+config_ww32_384_v4 = { #0.797
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v4-finetune.yaml',
+    'ckpt':'boeweights/keypoints797_v4_384x288.pth',
+    'input_shape':[1, 3,384, 288],
+}
+config_v5c = {
+    'cfg':'experiments/coco/whrnet/w32_384x256_adam_lr1e-3-v5c-finetune.yaml',
+    'ckpt':'boeweights/keypoints806_v5c_384x288.pth',
+    'input_shape':[1, 3,384, 288],
+}
+export_config = config_v5c
 def parse_args():
     parser = argparse.ArgumentParser(description='Train keypoints network')
     # general
